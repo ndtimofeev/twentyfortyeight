@@ -1,0 +1,8 @@
+{
+  "name": "twentyfortyeight",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "test": "node --test tests/core.test.js"
+  }
+}
