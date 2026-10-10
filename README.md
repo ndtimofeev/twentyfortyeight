@@ -49,5 +49,5 @@ server as `twentyfortyeight`, then `occ app:enable twentyfortyeight`.
 
 * Add the AGPL-3.0 `LICENSE` text (required by the App Store).
 * Translations (`l10n/`), currently English only.
-* Verify `min-version`/`max-version` in `appinfo/info.xml` against current releases.
+* Verify `min-version`/`max-version` in `appinfo/info.xml` (currently 31-34; only tried on 34 by the maintainers, not by CI).
 * Release signing / packaging for the App Store.
