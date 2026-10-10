@@ -36,7 +36,7 @@ class ScoreController extends Controller {
 
 	#[NoAdminRequired]
 	public function index(): DataResponse {
-		return new DataResponse($this->buildResponse($this->currentUid()));
+		return new DataResponse($this->leaderboardData($this->currentUid()));
 	}
 
 	/**
@@ -52,9 +52,9 @@ class ScoreController extends Controller {
 		}
 
 		$uid = $this->currentUid();
-		$this->save($uid, $score, $bestTile, $moves);
+		$this->storeScore($uid, $score, $bestTile, $moves);
 
-		return new DataResponse($this->buildResponse($uid));
+		return new DataResponse($this->leaderboardData($uid));
 	}
 
 	private function isValidTile(int $tile): bool {
@@ -67,7 +67,7 @@ class ScoreController extends Controller {
 		return $this->userSession->getUser()->getUID();
 	}
 
-	private function save(string $uid, int $score, int $bestTile, int $moves, bool $retry = true): void {
+	private function storeScore(string $uid, int $score, int $bestTile, int $moves, bool $retry = true): void {
 		$existing = $this->mapper->findByUser($uid);
 
 		if ($existing === null) {
@@ -82,7 +82,7 @@ class ScoreController extends Controller {
 			} catch (DbException $e) {
 				// Two tabs submitting the first score at the same time.
 				if ($retry && $e->getReason() === DbException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
-					$this->save($uid, $score, $bestTile, $moves, false);
+					$this->storeScore($uid, $score, $bestTile, $moves, false);
 					return;
 				}
 				throw $e;
@@ -102,7 +102,7 @@ class ScoreController extends Controller {
 		}
 	}
 
-	private function buildResponse(string $uid): array {
+	private function leaderboardData(string $uid): array {
 		$entries = [];
 		foreach ($this->mapper->findTop(self::LEADERBOARD_SIZE) as $i => $entry) {
 			$entries[] = [
