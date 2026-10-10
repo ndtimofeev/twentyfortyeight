@@ -39,6 +39,11 @@ The game is [gabrielecirulli/2048](https://github.com/gabrielecirulli/2048)
   rules and the bundled Clear Sans font are dropped (Nextcloud's font is used),
   text colour follows the Nextcloud theme.
 * Polyfills for old browsers and the "official version" note are removed.
+* The page shows only the board, the New Game button and the leaderboard: the
+  title, score/best boxes, intro, "How to play" and credits paragraphs are removed
+  from the template (the copyright notice stays in `LICENSE-2048.txt`), together with
+  the CSS for them. `html_actuator.js` skips the score boxes when they are missing.
+  The best score is still tracked and sent to the server.
 
 ## Install for development
 

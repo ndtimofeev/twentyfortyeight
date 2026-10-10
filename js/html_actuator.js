@@ -104,6 +104,8 @@ HTMLActuator.prototype.positionClass = function (position) {
 };
 
 HTMLActuator.prototype.updateScore = function (score) {
+  if (!this.scoreContainer) return; // Nextcloud adaptation: score box removed from the page
+
   this.clearContainer(this.scoreContainer);
 
   var difference = score - this.score;
@@ -121,6 +123,8 @@ HTMLActuator.prototype.updateScore = function (score) {
 };
 
 HTMLActuator.prototype.updateBestScore = function (bestScore) {
+  if (!this.bestContainer) return;
+
   this.bestContainer.textContent = bestScore;
 };
 

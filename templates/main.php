@@ -8,16 +8,7 @@
 		data-user="<?php p($_['user']); ?>">
 		<div class="tfe-wrap">
 			<div class="container" id="tfe-game">
-				<div class="heading">
-					<h1 class="title">2048</h1>
-					<div class="scores-container">
-						<div class="score-container">0</div>
-						<div class="best-container">0</div>
-					</div>
-				</div>
-
 				<div class="above-game">
-					<p class="game-intro">Join the numbers and get to the <strong>2048 tile!</strong></p>
 					<a class="restart-button">New Game</a>
 				</div>
 
@@ -43,14 +34,6 @@
 
 					<div class="tile-container"></div>
 				</div>
-
-				<p class="game-explanation">
-					<strong class="important">How to play:</strong> Use your <strong>arrow keys</strong> to move the tiles. When two tiles with the same number touch, they <strong>merge into one!</strong>
-				</p>
-				<hr>
-				<p>
-					Created by <a href="http://gabrielecirulli.com" target="_blank" rel="noreferrer">Gabriele Cirulli.</a> Based on <a href="https://itunes.apple.com/us/app/1024!/id823499224" target="_blank" rel="noreferrer">1024 by Veewo Studio</a> and conceptually similar to <a href="http://asherv.com/threes/" target="_blank" rel="noreferrer">Threes by Asher Vollmer.</a>
-				</p>
 			</div>
 
 			<aside class="tfe-leaderboard">
