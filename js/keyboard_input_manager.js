@@ -130,6 +130,10 @@ KeyboardInputManager.prototype.listen = function () {
     if (Math.max(absDx, absDy) > 10) {
       // (right : left) : (down : up)
       self.emit("move", absDx > absDy ? (dx > 0 ? 1 : 3) : (dy > 0 ? 2 : 0));
+    } else {
+      // Nextcloud adaptation: touchstart's preventDefault suppresses the click
+      // event, so report taps ourselves (used to pick tiles for bonuses)
+      self.emit("tap", { x: touchEndClientX, y: touchEndClientY });
     }
   });
 };

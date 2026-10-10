@@ -1,0 +1,86 @@
+#tfe .bonus-bar {
+	display: flex;
+	gap: 10px;
+	margin-top: 20px;
+}
+
+#tfe .bonus-button {
+	flex: 1 1 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	box-sizing: border-box;
+	height: 40px;
+	min-height: 0;
+	margin: 0;
+	padding: 0 8px;
+	border: 0;
+	border-radius: 6px;
+	background: #8f7a66;
+	color: #f9f6f2;
+	font: inherit;
+	font-weight: bold;
+	cursor: pointer;
+}
+
+#tfe .bonus-button:hover:not(:disabled),
+#tfe .bonus-button:focus-visible {
+	background: #a08a76;
+	color: #f9f6f2;
+}
+
+#tfe .bonus-button.active,
+#tfe .bonus-button.active:hover:not(:disabled) {
+	background: #f67c5f;
+}
+
+#tfe .bonus-button:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+#tfe .bonus-count {
+	min-width: 1.5em;
+	padding: 0 6px;
+	box-sizing: border-box;
+	border-radius: 10px;
+	background: rgba(249, 246, 242, 0.25);
+	line-height: 1.5;
+	text-align: center;
+}
+
+#tfe .bonus-hint {
+	margin: 10px 0 0;
+	font-size: 15px;
+	line-height: 1.4;
+	color: var(--color-text-maxcontrast);
+}
+
+#tfe .bonus-hint[hidden] {
+	display: none;
+}
+
+#tfe .game-container.bonus-mode {
+	cursor: pointer;
+}
+
+#tfe .tile.tile-selection {
+	z-index: 20;
+	box-sizing: border-box;
+	border: 4px solid #f65e3b;
+	border-radius: 6px;
+	background: rgba(246, 94, 59, 0.15);
+	pointer-events: none;
+}
+
+@media screen and (max-width: 520px) {
+	#tfe .bonus-bar {
+		gap: 6px;
+	}
+
+	#tfe .bonus-button {
+		gap: 4px;
+		padding: 0 4px;
+	}
+}

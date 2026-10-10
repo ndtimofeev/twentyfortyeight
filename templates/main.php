@@ -34,6 +34,19 @@
 
 					<div class="tile-container"></div>
 				</div>
+
+				<div class="bonus-bar">
+					<button type="button" class="bonus-button" data-bonus="undo" title="Undo the last move. One more charge at the 128 tile.">
+						<span class="bonus-name">Undo</span><span class="bonus-count">2</span>
+					</button>
+					<button type="button" class="bonus-button" data-bonus="swap" title="Swap two tiles. One more charge at the 256 tile.">
+						<span class="bonus-name">Swap</span><span class="bonus-count">2</span>
+					</button>
+					<button type="button" class="bonus-button" data-bonus="remove" title="Remove all tiles with one value. One more charge at the 512 tile.">
+						<span class="bonus-name">Remove</span><span class="bonus-count">2</span>
+					</button>
+				</div>
+				<p class="bonus-hint" hidden></p>
 			</div>
 
 			<aside class="tfe-leaderboard">

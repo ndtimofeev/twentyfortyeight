@@ -1,14 +1,24 @@
+// Nextcloud adaptation: bonus actions. Each one starts with BONUS_START charges
+// (never more than BONUS_MAX) and gets one more the first time the matching
+// tile is made in a game.
+var BONUS_START      = 2;
+var BONUS_MAX        = 2;
+var BONUS_MILESTONES = { 128: "undo", 256: "swap", 512: "remove" };
+
 function GameManager(size, InputManager, Actuator, StorageManager) {
   this.size           = size; // Size of the grid
   this.inputManager   = new InputManager;
   this.storageManager = new StorageManager;
   this.actuator       = new Actuator;
 
+  this.bonusUI        = new BonusUI(this);
+
   this.startTiles     = 2;
 
   this.inputManager.on("move", this.move.bind(this));
   this.inputManager.on("restart", this.restart.bind(this));
   this.inputManager.on("keepPlaying", this.keepPlaying.bind(this));
+  this.inputManager.on("tap", this.bonusUI.tap.bind(this.bonusUI));
 
   this.setup();
 }
@@ -44,6 +54,9 @@ GameManager.prototype.setup = function () {
     this.won         = previousState.won;
     this.keepPlaying = previousState.keepPlaying;
     this.moves       = previousState.moves || 0;
+    this.bonuses     = previousState.bonuses || this.freshBonuses();
+    this.reached     = previousState.reached || {};
+    this.previous    = previousState.previous || null;
   } else {
     this.grid        = new Grid(this.size);
     this.score       = 0;
@@ -51,6 +64,9 @@ GameManager.prototype.setup = function () {
     this.won         = false;
     this.keepPlaying = false;
     this.moves       = 0;
+    this.bonuses     = this.freshBonuses();
+    this.reached     = {};
+    this.previous    = null; // state before the last move, used by undo
 
     // Add the initial tiles
     this.addStartTiles();
@@ -98,6 +114,8 @@ GameManager.prototype.actuate = function () {
     terminated: this.isGameTerminated()
   });
 
+  this.bonusUI.update();
+
 };
 
 // Represent the current game as an object
@@ -108,7 +126,10 @@ GameManager.prototype.serialize = function () {
     over:        this.over,
     won:         this.won,
     keepPlaying: this.keepPlaying,
-    moves:       this.moves
+    moves:       this.moves,
+    bonuses:     this.bonuses,
+    reached:     this.reached,
+    previous:    this.previous
   };
 };
 
@@ -152,6 +173,7 @@ GameManager.prototype.move = function (direction) {
   var vector     = this.getVector(direction);
   var traversals = this.buildTraversals(vector);
   var moved      = false;
+  var snapshot   = this.snapshot();
 
   // Save the current tile positions and remove merger information
   this.prepareTiles();
@@ -182,6 +204,8 @@ GameManager.prototype.move = function (direction) {
 
           // The mighty 2048 tile
           if (merged.value === 2048) self.won = true;
+
+          self.awardBonus(merged.value);
         } else {
           self.moveTile(tile, positions.farthest);
         }
@@ -194,6 +218,7 @@ GameManager.prototype.move = function (direction) {
   });
 
   if (moved) {
+    this.previous = snapshot;
     this.moves++;
     this.addRandomTile();
 
@@ -284,4 +309,120 @@ GameManager.prototype.tileMatchesAvailable = function () {
 
 GameManager.prototype.positionsEqual = function (first, second) {
   return first.x === second.x && first.y === second.y;
+};
+
+// --- Nextcloud adaptation: bonus actions ---
+
+GameManager.prototype.freshBonuses = function () {
+  return { undo: BONUS_START, swap: BONUS_START, remove: BONUS_START };
+};
+
+// The state to return to when the last move is undone
+GameManager.prototype.snapshot = function () {
+  return {
+    grid:  this.grid.serialize(),
+    score: this.score,
+    moves: this.moves,
+    won:   this.won,
+    over:  this.over
+  };
+};
+
+// A charge is earned only the first time a tile is made in a game. Neither the
+// charges nor this record are rolled back by undo, otherwise undoing and redoing
+// the merge would produce free charges.
+GameManager.prototype.awardBonus = function (value) {
+  var type = BONUS_MILESTONES[value];
+
+  if (!type || this.reached[value]) return;
+
+  this.reached[value] = true;
+  if (this.bonuses[type] < BONUS_MAX) this.bonuses[type]++;
+};
+
+GameManager.prototype.canUndo = function () {
+  return !!this.previous && this.bonuses.undo > 0;
+};
+
+// Swap and remove change the board without a move, so they need a running game
+GameManager.prototype.canUseBonus = function (type) {
+  if (type === "undo") return this.canUndo();
+
+  return this.bonuses[type] > 0 && !this.isGameTerminated();
+};
+
+// Take back the last move (also works on the game over / win screen)
+GameManager.prototype.undo = function () {
+  if (!this.canUndo()) return false;
+
+  var state = this.previous;
+
+  this.grid     = new Grid(state.grid.size, state.grid.cells);
+  this.score    = state.score;
+  this.moves    = state.moves;
+  this.won      = state.won;
+  this.over     = state.over;
+  this.previous = null;
+  this.bonuses.undo--;
+
+  this.actuator.continueGame(); // Clear the game won/lost message
+  this.actuate();
+
+  return true;
+};
+
+// Swap two tiles with different values
+GameManager.prototype.swapTiles = function (first, second) {
+  if (!this.canUseBonus("swap")) return false;
+
+  var a = this.grid.cellContent(first);
+  var b = this.grid.cellContent(second);
+
+  if (!a || !b || a === b || a.value === b.value) return false;
+
+  this.prepareTiles(); // so that the tiles slide to their new places
+
+  this.grid.cells[first.x][first.y]   = b;
+  this.grid.cells[second.x][second.y] = a;
+  a.updatePosition(second);
+  b.updatePosition(first);
+
+  this.bonuses.swap--;
+  this.previous = null; // undo only takes back moves
+  if (!this.movesAvailable()) this.over = true;
+
+  this.actuate();
+
+  return true;
+};
+
+// Remove every tile with the given value
+GameManager.prototype.removeTilesOfValue = function (value) {
+  if (!this.canUseBonus("remove")) return false;
+
+  var self  = this;
+  var found = false;
+
+  this.prepareTiles();
+
+  this.grid.eachCell(function (x, y, tile) {
+    if (tile && tile.value === value) {
+      self.grid.removeTile(tile);
+      found = true;
+    }
+  });
+
+  if (!found) return false;
+
+  // Never leave an empty board: nothing could move on it
+  if (this.grid.availableCells().length === this.size * this.size) {
+    this.addStartTiles();
+  }
+
+  this.bonuses.remove--;
+  this.previous = null;
+
+  this.actuate();
+
+  return true;
 };
