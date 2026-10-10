@@ -2,38 +2,63 @@
 /** @var array $_ */
 ?>
 <div id="app-content">
-	<div class="tfe" data-scores-url="<?php p($_['scoresUrl']); ?>">
-		<div class="tfe-game">
-			<div class="tfe-header">
-				<h1>2048</h1>
-				<div class="tfe-stats">
-					<div class="tfe-stat"><span>Score</span><strong id="tfe-score">0</strong></div>
-					<div class="tfe-stat"><span>Best</span><strong id="tfe-best">0</strong></div>
-				</div>
-			</div>
-			<div class="tfe-actions">
-				<p>Join the numbers and get to the <strong>2048</strong> tile! Use the arrow keys, WASD or swipe.</p>
-				<button type="button" id="tfe-new" class="primary">New game</button>
-			</div>
-			<div class="tfe-board" id="tfe-board">
-				<div class="tfe-cells">
-					<?php for ($i = 0; $i < 16; $i++): ?><div class="tfe-cell"></div><?php endfor; ?>
-				</div>
-				<div class="tfe-tiles" id="tfe-tiles"></div>
-				<div class="tfe-message" id="tfe-message" hidden>
-					<p id="tfe-message-text"></p>
-					<div>
-						<button type="button" id="tfe-continue" class="primary" hidden>Keep going</button>
-						<button type="button" id="tfe-retry">Try again</button>
+	<div id="tfe"
+		data-scores-url="<?php p($_['scoresUrl']); ?>"
+		data-best="<?php p($_['best']); ?>"
+		data-user="<?php p($_['user']); ?>">
+		<div class="tfe-wrap">
+			<div class="container" id="tfe-game">
+				<div class="heading">
+					<h1 class="title">2048</h1>
+					<div class="scores-container">
+						<div class="score-container">0</div>
+						<div class="best-container">0</div>
 					</div>
 				</div>
+
+				<div class="above-game">
+					<p class="game-intro">Join the numbers and get to the <strong>2048 tile!</strong></p>
+					<a class="restart-button">New Game</a>
+				</div>
+
+				<div class="game-container">
+					<div class="game-message">
+						<p></p>
+						<div class="lower">
+							<a class="keep-playing-button">Keep going</a>
+							<a class="retry-button">Try again</a>
+						</div>
+					</div>
+
+					<div class="grid-container">
+						<?php for ($row = 0; $row < 4; $row++): ?>
+						<div class="grid-row">
+							<div class="grid-cell"></div>
+							<div class="grid-cell"></div>
+							<div class="grid-cell"></div>
+							<div class="grid-cell"></div>
+						</div>
+						<?php endfor; ?>
+					</div>
+
+					<div class="tile-container"></div>
+				</div>
+
+				<p class="game-explanation">
+					<strong class="important">How to play:</strong> Use your <strong>arrow keys</strong> to move the tiles. When two tiles with the same number touch, they <strong>merge into one!</strong>
+				</p>
+				<hr>
+				<p>
+					Created by <a href="http://gabrielecirulli.com" target="_blank" rel="noreferrer">Gabriele Cirulli.</a> Based on <a href="https://itunes.apple.com/us/app/1024!/id823499224" target="_blank" rel="noreferrer">1024 by Veewo Studio</a> and conceptually similar to <a href="http://asherv.com/threes/" target="_blank" rel="noreferrer">Threes by Asher Vollmer.</a>
+				</p>
 			</div>
+
+			<aside class="tfe-leaderboard">
+				<h2>Leaderboard</h2>
+				<p id="tfe-me" class="tfe-me"></p>
+				<ol id="tfe-list"></ol>
+				<p id="tfe-empty" hidden>No scores yet. Be the first!</p>
+			</aside>
 		</div>
-		<aside class="tfe-leaderboard">
-			<h2>Leaderboard</h2>
-			<p id="tfe-me" class="tfe-me"></p>
-			<ol id="tfe-list"></ol>
-			<p id="tfe-empty" hidden>No scores yet. Be the first!</p>
-		</aside>
 	</div>
 </div>

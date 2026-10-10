@@ -1,0 +1,75 @@
+.tfe-wrap {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	align-items: flex-start;
+	gap: 40px;
+}
+
+.tfe-wrap #tfe-game {
+	flex: none;
+}
+
+.tfe-leaderboard {
+	flex: 0 1 320px;
+	min-width: 240px;
+}
+
+.tfe-leaderboard h2 {
+	margin: 0 0 4px;
+	font-size: 28px;
+	font-weight: bold;
+}
+
+.tfe-me {
+	margin: 0 0 12px;
+	color: var(--color-text-maxcontrast);
+}
+
+.tfe-leaderboard ol {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	counter-reset: tfe-rank;
+}
+
+.tfe-leaderboard li {
+	counter-increment: tfe-rank;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 8px;
+	border-radius: var(--border-radius-large, 8px);
+}
+
+.tfe-leaderboard li::before {
+	content: counter(tfe-rank);
+	flex: none;
+	width: 1.8em;
+	text-align: right;
+	color: var(--color-text-maxcontrast);
+}
+
+.tfe-leaderboard li:nth-child(-n+3)::before {
+	color: var(--color-main-text);
+	font-weight: bold;
+}
+
+.tfe-leaderboard li.tfe-mine {
+	background: var(--color-primary-element-light, var(--color-background-hover));
+}
+
+.tfe-name {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.tfe-tile-best {
+	flex: none;
+	min-width: 3em;
+	text-align: center;
+	font-size: 13px;
+	color: var(--color-text-maxcontrast);
+}

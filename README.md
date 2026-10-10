@@ -6,8 +6,8 @@ of the instance.
 * Each user's best score (plus best tile and move count) is stored in the
   `twentyfortyeight_scores` table; one row per user.
 * The leaderboard shows the top 20 and the current user's place.
-* The running game is kept in the browser's `localStorage`, so a reload doesn't
-  lose it.
+* The running game is kept in the browser's `localStorage` (per Nextcloud user),
+  so a reload doesn't lose it.
 * **Scores are submitted by the client and are not verified.** Anyone can post a
   fake score. Only basic sanity limits are enforced. Replay validation (seeded
   RNG + server-side re-play of the moves) is a possible future step.
@@ -18,14 +18,27 @@ of the instance.
 appinfo/        info.xml, routes.php
 lib/            controllers, entity/mapper, DB migration
 templates/      main.php
-js/core.js      game rules (no DOM, tested with node)
-js/main.js      UI, input, API calls
-css/style.css
-tests/          node --test tests/core.test.js
+js/             original 2048 sources + Nextcloud glue (see below)
+css/main.css    original 2048 stylesheet, scoped to #tfe
+css/leaderboard.css
 ```
 
-The game logic is an independent implementation of the 2048 rules, not a copy of
-the original code.
+## Origin of the game code
+
+The game is [gabrielecirulli/2048](https://github.com/gabrielecirulli/2048)
+(MIT, see `LICENSE-2048.txt`). Differences from upstream:
+
+* `grid.js`, `tile.js`, `html_actuator.js`, `local_storage_manager.js`: unchanged.
+* `keyboard_input_manager.js`: ignores key presses while focus is in an input field.
+* `game_manager.js`: counts moves and passes `{bestTile, moves}` to
+  `setBestScore()`.
+* `application.js`: uses `ServerStorageManager`.
+* New: `server_storage_manager.js` (best score from/to the server, debounced POST,
+  game state still in localStorage) and `leaderboard.js`.
+* `css/main.css`: every selector is prefixed with `#tfe`, the page-wide `html`/`body`
+  rules and the bundled Clear Sans font are dropped (Nextcloud's font is used),
+  text colour follows the Nextcloud theme.
+* Polyfills for old browsers and the "official version" note are removed.
 
 ## Install for development
 
