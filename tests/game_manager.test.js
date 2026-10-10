@@ -12,7 +12,7 @@ function load(savedState) {
 
 	const stored = { state: savedState || null }
 	const ctx = vm.createContext({ console, Math: math, JSON })
-	ctx.BonusUI = class { tap() {} update() {} }
+	ctx.BonusUI = class { tap() {} update() { ctx.updates = (ctx.updates || 0) + 1 } }
 	ctx.InputManager = class { on() {} }
 	ctx.Actuator = class { actuate() {} continueGame() { ctx.continued = (ctx.continued || 0) + 1 } }
 	ctx.Storage = class {
@@ -234,23 +234,32 @@ test('swap and remove are blocked on the game over screen, undo is not', () => {
 	assert.strictEqual(game.canUseBonus('undo'), true)
 })
 
-test('a swap that leaves no moves ends the game', () => {
+test('a swap that would leave no moves is refused and costs nothing', () => {
 	const env = load()
 	const { game } = env
-	// the only equal neighbours are the two 2s at the top left; swapping one away locks the board
-	setBoard(env, [[2, 2, 4, 8], [16, 32, 64, 128], [256, 512, 1024, 2048], [4096, 8192, 16384, 32768]])
+	// the only equal neighbours are the two 2s at the top left; swapping one away would lock the board
+	const rows = [[2, 2, 4, 8], [16, 32, 64, 128], [256, 512, 1024, 2048], [4096, 8192, 16384, 32768]]
+	setBoard(env, rows)
 	assert.ok(game.movesAvailable())
-	assert.ok(game.swapTiles({ x: 0, y: 0 }, { x: 3, y: 2 }))
-	assert.ok(game.over)
+	assert.strictEqual(game.swapTiles({ x: 0, y: 0 }, { x: 3, y: 2 }), false)
+	assert.deepStrictEqual(board(game), rows)
+	assert.strictEqual(game.over, false)
+	assert.strictEqual(game.bonuses.swap, 2)
+	// tile objects still know where they are
+	game.grid.eachCell((x, y, t) => { assert.strictEqual(t.x, x); assert.strictEqual(t.y, y) })
+	// a harmless swap on the same board still works
+	assert.ok(game.swapTiles({ x: 2, y: 0 }, { x: 3, y: 0 }))
 })
 
 test('remove deletes every tile with that value only', () => {
 	const env = load()
 	const { game } = env
 	setBoard(env, [[2, 4, 2, 0], [0, 2, 8, 4], [0, 0, 0, 0], [2, 0, 0, 0]])
+	const moves = game.moves
 	assert.ok(game.removeTilesOfValue(2))
 	assert.deepStrictEqual(board(game), [[0, 4, 0, 0], [0, 0, 8, 4], [0, 0, 0, 0], [0, 0, 0, 0]])
 	assert.strictEqual(game.bonuses.remove, 1)
+	assert.strictEqual(game.moves, moves, 'remove is not a move')
 })
 
 test('remove of a value that is not there changes nothing', () => {
@@ -295,4 +304,73 @@ test('a state saved before the bonuses existed gets the defaults', () => {
 	const again = load(state).game
 	assert.deepStrictEqual(JSON.parse(JSON.stringify(again.bonuses)), { undo: 2, swap: 2, remove: 2 })
 	assert.strictEqual(again.canUndo(), false)
+})
+
+test('a move that changes nothing keeps the undo snapshot of the move before', () => {
+	const env = load()
+	const { game } = env
+	setBoard(env, withRow(3, [2, 4, 8, 16])) // already at the bottom
+	const snapshot = { marker: 'snapshot of an earlier move' }
+	game.previous = snapshot
+	game.move(2) // down: nothing moves
+	assert.strictEqual(game.previous, snapshot)
+	assert.strictEqual(game.moves, 0)
+})
+
+test('Keep going refreshes the bonus buttons', () => {
+	const env = load()
+	const { game, ctx } = env
+	setBoard(env, withRow(0, [1024, 1024, 0, 0]))
+	game.move(LEFT)
+	assert.ok(game.won)
+	const before = ctx.updates
+	// the constructor-bound handler; the instance property of the same name holds the flag
+	Object.getPrototypeOf(game).keepPlaying.call(game)
+	assert.ok(ctx.updates > before)
+	assert.strictEqual(game.canUseBonus('swap'), true)
+})
+
+test('undo renders the restored tiles in place instead of as new ones', () => {
+	const env = load()
+	const { game } = env
+	setBoard(env, withRow(0, [2, 4, 0, 0]))
+	game.move(2)
+	game.undo()
+	game.grid.eachCell((x, y, t) => { if (t) assert.ok(t.previousPosition, 'previousPosition set') })
+})
+
+test('the game over screen keeps the game for a reload while undo is possible', () => {
+	const env = load()
+	const { game, stored } = env
+	setBoard(env, ONE_MOVE_FROM_STUCK)
+	game.move(1)
+	assert.ok(game.over)
+	assert.ok(stored.state, 'game over state is kept')
+	assert.strictEqual(stored.state.over, true)
+
+	const again = load(stored.state).game
+	assert.strictEqual(again.over, true)
+	assert.ok(again.undo())
+	assert.strictEqual(again.over, false)
+	assert.strictEqual(stored.state.over, true, 'a separate env: first stored state untouched')
+})
+
+test('the saved game is cleared on game over once undo is not possible', () => {
+	const env = load()
+	const { game, stored } = env
+	game.bonuses.undo = 0
+	setBoard(env, ONE_MOVE_FROM_STUCK)
+	game.move(1)
+	assert.ok(game.over)
+	assert.strictEqual(stored.state, null)
+})
+
+test('the best tile survives Remove taking it off the board', () => {
+	const env = load()
+	const { game } = env
+	setBoard(env, withRow(0, [64, 64, 2, 0]))
+	game.move(LEFT) // 128 on the board; actuate remembers it
+	assert.strictEqual(game.stats().bestTile, 128)
+	game.removeTilesOfValue(128)
+	assert.strictEqual(game.stats().bestTile, 128)
 })

@@ -6,6 +6,8 @@
 
 #tfe .bonus-button {
 	flex: 1 1 0;
+	min-width: 0;
+	white-space: nowrap;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -24,15 +26,23 @@
 	cursor: pointer;
 }
 
-#tfe .bonus-button:hover:not(:disabled),
 #tfe .bonus-button:focus-visible {
 	background: #a08a76;
 	color: #f9f6f2;
 }
 
+/* no sticky hover colour after a tap on touch screens */
+@media (hover: hover) {
+	#tfe .bonus-button:hover:not(:disabled) {
+		background: #a08a76;
+		color: #f9f6f2;
+	}
+}
+
 #tfe .bonus-button.active,
-#tfe .bonus-button.active:hover:not(:disabled) {
-	background: #f67c5f;
+#tfe .bonus-button.active:hover:not(:disabled),
+#tfe .bonus-button.active:focus-visible {
+	background: #f65e3b;
 }
 
 #tfe .bonus-button:disabled {
@@ -68,9 +78,11 @@
 #tfe .tile.tile-selection {
 	z-index: 20;
 	box-sizing: border-box;
-	border: 4px solid #f65e3b;
+	/* a colour that is not in the tile palette, plus a light inner ring so it shows on every tile */
+	border: 4px solid #776e65;
 	border-radius: 6px;
-	background: rgba(246, 94, 59, 0.15);
+	background: transparent;
+	box-shadow: inset 0 0 0 2px #fff;
 	pointer-events: none;
 }
 

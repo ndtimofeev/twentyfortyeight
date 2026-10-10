@@ -34,6 +34,7 @@ GameManager.prototype.restart = function () {
 GameManager.prototype.keepPlaying = function () {
   this.keepPlaying = true;
   this.actuator.continueGame(); // Clear the game won/lost message
+  this.bonusUI.update();        // swap and remove work again
 };
 
 // Return true if the game is lost, or has won and the user hasn't kept playing
@@ -54,6 +55,7 @@ GameManager.prototype.setup = function () {
     this.won         = previousState.won;
     this.keepPlaying = previousState.keepPlaying;
     this.moves       = previousState.moves || 0;
+    this.maxTile     = previousState.maxTile || 0;
     this.bonuses     = previousState.bonuses || this.freshBonuses();
     this.reached     = previousState.reached || {};
     this.previous    = previousState.previous || null;
@@ -64,6 +66,7 @@ GameManager.prototype.setup = function () {
     this.won         = false;
     this.keepPlaying = false;
     this.moves       = 0;
+    this.maxTile     = 0;
     this.bonuses     = this.freshBonuses();
     this.reached     = {};
     this.previous    = null; // state before the last move, used by undo
@@ -95,12 +98,15 @@ GameManager.prototype.addRandomTile = function () {
 
 // Sends the updated grid to the actuator
 GameManager.prototype.actuate = function () {
+  var stats = this.stats(); // also remembers the biggest tile of the game
+
   if (this.storageManager.getBestScore() < this.score) {
-    this.storageManager.setBestScore(this.score, this.stats());
+    this.storageManager.setBestScore(this.score, stats);
   }
 
-  // Clear the state when the game is over (game over only, not win)
-  if (this.over) {
+  // Clear the state when the game is over (game over only, not win), unless the
+  // last move can still be undone: then a reload must not lose that chance.
+  if (this.over && !this.canUndo()) {
     this.storageManager.clearGameState();
   } else {
     this.storageManager.setGameState(this.serialize());
@@ -127,6 +133,7 @@ GameManager.prototype.serialize = function () {
     won:         this.won,
     keepPlaying: this.keepPlaying,
     moves:       this.moves,
+    maxTile:     this.maxTile,
     bonuses:     this.bonuses,
     reached:     this.reached,
     previous:    this.previous
@@ -135,11 +142,14 @@ GameManager.prototype.serialize = function () {
 
 // Extra numbers sent to the leaderboard together with the score
 GameManager.prototype.stats = function () {
-  var bestTile = 0;
+  var bestTile = this.maxTile;
 
   this.grid.eachCell(function (x, y, tile) {
     if (tile && tile.value > bestTile) bestTile = tile.value;
   });
+
+  // Remembered, because Remove can take the biggest tile off the board
+  this.maxTile = bestTile;
 
   return { bestTile: bestTile, moves: this.moves };
 };
@@ -365,6 +375,7 @@ GameManager.prototype.undo = function () {
   this.previous = null;
   this.bonuses.undo--;
 
+  this.prepareTiles(); // render the restored tiles in place instead of popping them in
   this.actuator.continueGame(); // Clear the game won/lost message
   this.actuate();
 
@@ -380,16 +391,23 @@ GameManager.prototype.swapTiles = function (first, second) {
 
   if (!a || !b || a === b || a.value === b.value) return false;
 
-  this.prepareTiles(); // so that the tiles slide to their new places
-
+  // A swap that locks the board would end the game with no way back (undo only
+  // takes back moves), so try it first and refuse it if it does.
   this.grid.cells[first.x][first.y]   = b;
   this.grid.cells[second.x][second.y] = a;
+
+  if (!this.movesAvailable()) {
+    this.grid.cells[first.x][first.y]   = a;
+    this.grid.cells[second.x][second.y] = b;
+    return false;
+  }
+
+  this.prepareTiles(); // remember the old positions so that the tiles slide
   a.updatePosition(second);
   b.updatePosition(first);
 
   this.bonuses.swap--;
   this.previous = null; // undo only takes back moves
-  if (!this.movesAvailable()) this.over = true;
 
   this.actuate();
 

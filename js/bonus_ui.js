@@ -59,14 +59,18 @@ BonusUI.prototype.setMode = function (type) {
   this.mode = type;
   this.container.classList.add("bonus-mode");
   this.buttons[type].classList.add("active");
-  this.hint.textContent = BonusUI.HINTS[type] + " Press Esc to cancel.";
+  this.buttons[type].setAttribute("aria-pressed", "true");
+  this.hint.textContent = BonusUI.HINTS[type] + " Press Esc or tap the button again to cancel.";
   this.hint.hidden = false;
 };
 
 BonusUI.prototype.cancel = function () {
   this.clearSelection();
 
-  if (this.mode) this.buttons[this.mode].classList.remove("active");
+  if (this.mode) {
+    this.buttons[this.mode].classList.remove("active");
+    this.buttons[this.mode].setAttribute("aria-pressed", "false");
+  }
   this.mode = null;
   this.container.classList.remove("bonus-mode");
   this.hint.hidden = true;
@@ -126,8 +130,10 @@ BonusUI.prototype.tap = function (point) {
     this.clearSelection(); // tapped the same tile again
   } else if (this.game.grid.cellContent(this.selected).value === tile.value) {
     this.select(cell); // swapping equal tiles is pointless, take the new one instead
-  } else {
-    this.game.swapTiles(this.selected, cell);
+  } else if (!this.game.swapTiles(this.selected, cell)) {
+    // Refused: the swap would leave no moves and end the game
+    this.clearSelection();
+    this.hint.textContent = "That swap would end the game. Pick two other tiles.";
   }
 };
 
