@@ -95,6 +95,12 @@ GameManager.prototype.setup = function () {
 
 GameManager.prototype.initializeState = function (previousState) {
   var session = this.storageManager.session;
+  this.rulesVersion = session ? (session.version || 1) : 2;
+  if (this.rulesVersion === 2) {
+    this.pendingBonuses = previousState && previousState.pendingBonuses || this.freshPendingBonuses();
+  } else {
+    delete this.pendingBonuses;
+  }
   this.random = session ? new SeededRandom(previousState && previousState.randomState || session.seed) : null;
   this.initializing = false;
 
@@ -160,7 +166,7 @@ GameManager.prototype.setStatus = function (message) {
 };
 
 GameManager.prototype.canRecordAction = function () {
-  if (this.initializing || !this.grid) return false;
+  if (this.initializing || !this.grid || this.storageManager.gameTransitioning) return false;
   if (this.storageManager.actions && this.storageManager.actions.length >= 50000) {
     this.setStatus("This game has reached the action limit. Start a new game to continue.");
     return false;
@@ -204,7 +210,7 @@ GameManager.prototype.actuate = function () {
 
 // Represent the current game as an object
 GameManager.prototype.serialize = function () {
-  return {
+  var state = {
     grid:        this.grid.serialize(),
     score:       this.score,
     over:        this.over,
@@ -217,6 +223,8 @@ GameManager.prototype.serialize = function () {
     previous:    this.previous,
     randomState: this.random ? this.random.state : undefined
   };
+  if (this.rulesVersion === 2) state.pendingBonuses = this.pendingBonuses;
+  return state;
 };
 
 // Extra numbers sent to the leaderboard together with the score
@@ -407,6 +415,10 @@ GameManager.prototype.freshBonuses = function () {
   return { undo: BONUS_START, swap: BONUS_START, remove: BONUS_START };
 };
 
+GameManager.prototype.freshPendingBonuses = function () {
+  return { undo: 0, swap: 0, remove: 0 };
+};
+
 // The state to return to when the last move is undone
 GameManager.prototype.snapshot = function () {
   return {
@@ -419,8 +431,8 @@ GameManager.prototype.snapshot = function () {
 };
 
 // A charge is earned only the first time a tile is made in a game. Neither the
-// charges nor this record are rolled back by undo, otherwise undoing and redoing
-// the merge would produce free charges.
+// charges, banked rewards nor this record are rolled back by undo, otherwise
+// undoing and redoing the merge would produce free charges.
 GameManager.prototype.awardBonus = function (value) {
   var type = BONUS_MILESTONES[value];
 
@@ -428,6 +440,17 @@ GameManager.prototype.awardBonus = function (value) {
 
   this.reached[value] = true;
   if (this.bonuses[type] < BONUS_MAX) this.bonuses[type]++;
+  else if (this.rulesVersion === 2) this.pendingBonuses[type] = 1;
+};
+
+// Version 2 retains a reward earned at the cap until this bonus is next used.
+// Redeem it only once; board snapshots deliberately do not contain this ledger.
+GameManager.prototype.useBonusCharge = function (type) {
+  this.bonuses[type]--;
+  if (this.rulesVersion === 2 && this.pendingBonuses[type]) {
+    this.pendingBonuses[type] = 0;
+    this.bonuses[type] = Math.min(BONUS_MAX, this.bonuses[type] + 1);
+  }
 };
 
 GameManager.prototype.canUndo = function () {
@@ -454,7 +477,7 @@ GameManager.prototype.undo = function () {
   this.won      = state.won;
   this.over     = state.over;
   this.previous = null;
-  this.bonuses.undo--;
+  this.useBonusCharge("undo");
 
   this.prepareTiles(); // render the restored tiles in place instead of popping them in
   this.actuator.continueGame(); // Clear the game won/lost message
@@ -488,7 +511,7 @@ GameManager.prototype.swapTiles = function (first, second) {
   a.updatePosition(second);
   b.updatePosition(first);
 
-  this.bonuses.swap--;
+  this.useBonusCharge("swap");
   this.previous = null; // undo only takes back moves
 
   this.recordAction(["swap", first.x, first.y, second.x, second.y]);
@@ -520,7 +543,7 @@ GameManager.prototype.removeTilesOfValue = function (value) {
     this.addStartTiles();
   }
 
-  this.bonuses.remove--;
+  this.useBonusCharge("remove");
   this.previous = null;
 
   this.recordAction(["remove", value]);

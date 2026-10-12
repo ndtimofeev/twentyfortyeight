@@ -239,8 +239,12 @@ BonusUI.prototype.update = function () {
     var button = this.buttons[type];
 
     var count = this.game.bonuses ? this.game.bonuses[type] : 0;
-    button.querySelector(".bonus-count").textContent = count;
-    button.setAttribute("aria-label", type.charAt(0).toUpperCase() + type.slice(1) + ": " + count + " charges");
+    var pending = this.game.pendingBonuses ? this.game.pendingBonuses[type] || 0 : 0;
+    var counter = button.querySelector(".bonus-count");
+    counter.textContent = count;
+    counter.setAttribute("data-pending", pending);
+    button.setAttribute("aria-label", type.charAt(0).toUpperCase() + type.slice(1) + ": " + count + " charges" +
+      (pending ? ", one earned charge held until the next use" : ""));
     button.disabled = !!this.game.initializing || !this.game.grid || !this.game.canUseBonus(type);
   }
 

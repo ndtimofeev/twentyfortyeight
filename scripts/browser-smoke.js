@@ -1,7 +1,10 @@
 const {chromium} = require('playwright');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const {createGame,chooseMove,apply}=require('../tests/generate_replay_fixtures');
 const stateFields = ['grid', 'score', 'over', 'won', 'keepPlaying', 'moves', 'maxTile',
-  'bonuses', 'reached', 'previous', 'randomState', 'peakScore'];
+  'bonuses', 'pendingBonuses', 'reached', 'previous', 'randomState', 'peakScore'];
+const copy=value => JSON.parse(JSON.stringify(value));
 function boardState(state) {
   return Object.fromEntries(stateFields.filter(key => key in state).map(key => [key, state[key]]));
 }
@@ -57,17 +60,192 @@ async function assertRendered(page,state) {
     assert.equal(Number(await page.locator('[data-bonus='+bonus+'] .bonus-count').textContent()),state.bonuses[bonus]);
   }
 }
-async function login(context, base, errors) {
+async function login(context, base, errors, username='smoke-two') {
   const page=await context.newPage();
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(base+'/index.php/login');
-  await page.locator('input[name=user]').fill('smoke-two');
+  await page.locator('input[name=user]').fill(username);
   await page.locator('input[name=password]').fill(process.env.TEST_NEXTCLOUD_PASSWORD);
   await page.locator('button[type=submit], input[type=submit]').first().click();
   await page.waitForURL(/\/apps\//,{timeout:30000});
   await page.goto(base+'/index.php/apps/twentyfortyeight/');
   await waitReady(page);
   return page;
+}
+function fixtureState(env) {
+  return copy({...env.game.serialize(),peakScore:env.stored.peakScore});
+}
+function fixtureAction(env,action) {
+  const before=env.stored.actions.length;
+  apply(env,action);
+  assert.equal(env.stored.actions.length,before+1,'Every planned milestone action must succeed');
+  return fixtureState(env);
+}
+function first128Plan(seed) {
+  const env=createGame(seed,null,null,2);
+  const steps=[];
+  for (let move=0;move<1000 && !env.game.reached[128];move++) {
+    assert.equal(env.game.over,false,'The solver must reach the first 128 before losing');
+    const direction=chooseMove(env.game);
+    assert.notEqual(direction,null);
+    const action=['move',direction];
+    steps.push({action,state:fixtureAction(env,action)});
+  }
+  assert.equal(Boolean(env.game.reached[128]),true);
+  assert.equal(env.game.bonuses.undo,2);
+  assert.equal(env.game.pendingBonuses.undo,1,'The first milestone at the full cap must keep its reward');
+  return {env,steps};
+}
+async function playFixtureAction(page,action) {
+  if (action[0]==='undo') await page.locator('[data-bonus=undo]').click();
+  else {
+    // A still-focused bonus button intentionally owns arrows; return them to the board.
+    await page.evaluate(() => {document.activeElement.blur();document.body.focus();});
+    await page.keyboard.press(['ArrowUp','ArrowRight','ArrowDown','ArrowLeft'][action[1]]);
+  }
+}
+async function assertFixtureState(page,expected) {
+  const actual=await readState(page);
+  assert.deepEqual(boardState(actual),boardState(expected),'The genuine browser game must match the planned seeded game');
+  await assertRendered(page,expected);
+  return actual;
+}
+async function milestoneRegression(browser,page,base,errors) {
+  const initial=await readState(page);
+  assert.equal(initial.session.version,2);
+  assert.equal(initial.actions.length,0);
+  assert.equal(initial.bonuses.undo,2);
+  assert.equal(initial.pendingBonuses.undo,0);
+  const {env,steps}=first128Plan(initial.session.seed);
+  for (let index=0;index<steps.length;index++) {
+    await playFixtureAction(page,steps[index].action);
+    const actual=await readState(page);
+    assert.equal(actual.actions.length,index+1);
+    assert.deepEqual(boardState(actual),boardState(steps[index].state));
+  }
+  const earned=await assertFixtureState(page,fixtureState(env));
+  assert.equal(earned.bonuses.undo,2);
+  assert.equal(earned.pendingBonuses.undo,1);
+  const undoCounter=page.locator('[data-bonus=undo] .bonus-count');
+  assert.equal(await undoCounter.getAttribute('data-pending'),'1');
+  assert.equal(await undoCounter.evaluate(el => getComputedStyle(el,'::after').content),'"+1"');
+  if (process.env.TEST_UI_SCREENSHOT_DIR) {
+    const viewport=page.viewportSize();
+    await page.setViewportSize({width:390,height:640});
+    await page.screenshot({path:process.env.TEST_UI_SCREENSHOT_DIR+'/earned-undo.png'});
+    await page.setViewportSize(viewport);
+  }
+  await waitSaved(page,earned);
+  await page.reload();
+  await waitReady(page);
+  assert.deepEqual(boardState(await readState(page)),boardState(fixtureState(env)));
+
+  // The waiting reward is part of the shared game, including on a new profile.
+  const rewardContext=await browser.newContext();
+  const rewardPage=await login(rewardContext,base,errors);
+  const remoteEarned=await readState(rewardPage);
+  assert.deepEqual(boardState(remoteEarned),boardState(fixtureState(env)));
+  assert.deepEqual(remoteEarned.actions,earned.actions);
+  await assertRendered(rewardPage,fixtureState(env));
+
+  await playFixtureAction(page,['undo']);
+  let expected=fixtureAction(env,['undo']);
+  let actual=await assertFixtureState(page,expected);
+  assert.equal(actual.bonuses.undo,2,'Undo must redeem the waiting milestone reward immediately');
+  assert.equal(actual.pendingBonuses.undo,0);
+  const redo=steps.at(-1).action;
+  await playFixtureAction(page,redo);
+  expected=fixtureAction(env,redo);
+  actual=await assertFixtureState(page,expected);
+  assert.equal(Boolean(actual.reached[128]),true);
+  assert.equal(actual.bonuses.undo,2);
+  assert.equal(actual.pendingBonuses.undo,0,'Recreating the same milestone must not grant another reward');
+  await playFixtureAction(page,['undo']);
+  expected=fixtureAction(env,['undo']);
+  actual=await assertFixtureState(page,expected);
+  assert.equal(actual.bonuses.undo,1,'The next Undo spends a charge after the single reward is used');
+  assert.equal(actual.pendingBonuses.undo,0);
+  await waitSaved(page,actual);
+  await page.reload();
+  await waitReady(page);
+  assert.deepEqual(boardState(await readState(page)),boardState(expected));
+  await rewardPage.reload();
+  await waitReady(rewardPage);
+  const remoteSpent=await readState(rewardPage);
+  assert.deepEqual(boardState(remoteSpent),boardState(expected));
+  assert.deepEqual(remoteSpent.actions,actual.actions);
+  await assertRendered(rewardPage,expected);
+  await rewardContext.close();
+  console.log('Browser: full-cap first-128 reward survives save/reload and another device; Undo redeems it once.');
+}
+async function legacyUpgradeRegression(browser,base,errors,file) {
+  const fixture=JSON.parse(fs.readFileSync(file,'utf8'));
+  assert.equal(fixture.localState.session.version,1);
+  assert.equal(fixture.localState.bonuses.undo,0);
+  assert.equal(fixture.expectedState.bonuses.undo,1);
+  const context=await browser.newContext();
+  await context.addInitScript(({localState}) => {
+    document.addEventListener('DOMContentLoaded',() => {
+      const root=document.querySelector('#tfe');
+      if (!root || root.dataset.user!=='smoke-legacy') return;
+      const identity=encodeURIComponent(root.dataset.scoresUrl)+'.'+encodeURIComponent(root.dataset.user);
+      const key='twentyfortyeight.gameState.'+identity;
+      const marker=key+'.legacy-test-injected';
+      if (!localStorage.getItem(marker)) {
+        localStorage.setItem(key,JSON.stringify(localState));
+        localStorage.setItem(marker,'1');
+      }
+      // Capture the actual instance and the state it reads before initial setup.
+      // These wrappers leave construction and preparation behavior unchanged.
+      const Original=window.GameManager;
+      window.GameManager=function(...args) {
+        const game=new Original(...args);
+        window.__tfeTestGame=game;
+        return game;
+      };
+      window.GameManager.prototype=Original.prototype;
+      const prepare=window.ServerStorageManager.prototype.prepareGame;
+      window.ServerStorageManager.prototype.prepareGame=function(previousState) {
+        window.__tfeTestPrepared={version:previousState && previousState.session && previousState.session.version,
+          actions:previousState && previousState.actions && previousState.actions.length};
+        return prepare.apply(this,arguments);
+      };
+    },{once:true});
+  },{localState:fixture.localState});
+  const page=await login(context,base,errors,'smoke-legacy');
+  assert.deepEqual(await page.evaluate(() => window.__tfeTestPrepared),{
+    version:1,actions:fixture.localState.actions.length,
+  },'Startup must read the longer offline version-1 history');
+  assert.equal(await page.evaluate(() => window.__tfeTestGame.rulesVersion),2);
+  const promoted=await readState(page);
+  assert.equal(promoted.session.version,2);
+  assert(promoted.session.token!==fixture.localState.session.token,'Migration must issue a version-2 session');
+  assert.equal(promoted.session.seed,fixture.localState.session.seed);
+  assert.deepEqual(promoted.actions,fixture.localState.actions,'Every offline action must survive migration');
+  assert.deepEqual(boardState(promoted),boardState(fixture.expectedState));
+  assert.equal(promoted.bonuses.undo,1);
+  await assertRendered(page,fixture.expectedState);
+  const saved=await waitSaved(page,promoted);
+  assert(saved.revision>fixture.localState.revision);
+  assert.deepEqual(saved.actions,fixture.localState.actions);
+  assert.deepEqual(boardState(saved.state),boardState(fixture.expectedState));
+  await page.reload();
+  await waitReady(page);
+  const reloaded=await readState(page);
+  assert.equal(reloaded.session.version,2);
+  assert.deepEqual(reloaded.actions,fixture.localState.actions,'The init fixture must not replace the upgraded state on reload');
+  assert.deepEqual(boardState(reloaded),boardState(fixture.expectedState));
+  await assertRendered(page,fixture.expectedState);
+  const remoteContext=await browser.newContext();
+  const remotePage=await login(remoteContext,base,errors,'smoke-legacy');
+  const remote=await readState(remotePage);
+  assert.equal(remote.session.version,2);
+  assert.deepEqual(remote.actions,fixture.localState.actions);
+  assert.deepEqual(boardState(remote),boardState(fixture.expectedState));
+  await assertRendered(remotePage,fixture.expectedState);
+  await remoteContext.close();
+  await context.close();
+  console.log('Browser: version-1 offline tail upgrades to version 2 with its restored reward; server, reload and another device agree.');
 }
 (async () => {
   const browser = await chromium.launch({executablePath:process.env.TEST_CHROMIUM_EXECUTABLE || undefined,headless:true,args:['--no-sandbox']});
@@ -204,6 +382,11 @@ async function login(context, base, errors) {
     })));
     assert.equal(await page.locator('.tfe-status').textContent(), '');
 
+    await milestoneRegression(browser,page,base,errors);
+    if (process.env.TEST_LEGACY_GAME_FILE) {
+      await legacyUpgradeRegression(browser,base,errors,process.env.TEST_LEGACY_GAME_FILE);
+    }
+
     const mobileBoards = [];
     for (const width of [320, 390, 430, 700, 1280]) {
       await page.setViewportSize({width, height: 640});
@@ -258,6 +441,6 @@ async function login(context, base, errors) {
     }
     console.log('Mobile board widths: '+mobileBoards.join(', '));
     assert.deepEqual(errors, []);
-    console.log('Browser cross-device restore/conflicts, score/reload/Undo, silent saving, mobile geometry/scrolling, keyboard bonuses and restart passed.');
+    console.log('Browser milestone rewards, cross-device restore/conflicts, score/reload/Undo, silent saving, mobile geometry/scrolling, keyboard bonuses and restart passed.');
   } finally { await browser.close(); }
 })().catch(e=>{console.error(e.stack || e.message);process.exitCode=1;});

@@ -59,8 +59,8 @@ namespace {
 		}
 		return $columns;
 	}
-	function onBoard(array $rows): GameEngine {
-		$game = new GameEngine(1);
+	function onBoard(array $rows, int $version = GameEngine::VERSION): GameEngine {
+		$game = new GameEngine(1, $version);
 		set($game, 'board', rows($rows));
 		return $game;
 	}
@@ -80,6 +80,14 @@ namespace {
 	foreach ([0, -1, 4294967296] as $seed) {
 		rejects(fn() => new GameEngine($seed), 'Invalid seed ' . $seed);
 	}
+	foreach ([0, 3, -1] as $version) {
+		rejects(fn() => new GameEngine(1, $version), 'Unsupported rules version ' . $version);
+	}
+	same(2, (new GameEngine(1))->getRulesVersion(), 'New games use version 2');
+	same(1, (new GameEngine(1, 1))->getRulesVersion(), 'Legacy engine retains version 1');
+	same(false, array_key_exists('pendingBonuses', (new GameEngine(1, 1))->state()), 'Version 1 diagnostics remain unchanged');
+	same(false, array_key_exists('pendingBonuses', (new GameEngine(1, 1))->savedState()), 'Version 1 saved state remains unchanged');
+	same(['undo' => 0, 'swap' => 0, 'remove' => 0], (new GameEngine(1))->savedState()['pendingBonuses'], 'Version 2 starts without banked rewards');
 
 	$result = (new GameEngine(1))->replay([['move', 0], ['undo']]);
 	same(4, $result['peakScore'], 'Undo preserves peak score');
@@ -129,6 +137,56 @@ namespace {
 		same($type === 'undo' ? 1 : 2, $result['state']['bonuses'][$type], 'Milestone charge cannot be farmed with Undo: ' . $type);
 		same(true, $result['state']['reached']->{$value}, 'Milestone remembered');
 	}
+	foreach ([1, 2] as $version) {
+		foreach ([[128, 'undo'], [256, 'swap'], [512, 'remove']] as [$value, $type]) {
+			foreach ([0, 1] as $charges) {
+				$game = onBoard([[intdiv($value, 2), intdiv($value, 2), 2, 4], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], $version);
+				$bonuses = ['undo' => 2, 'swap' => 2, 'remove' => 2];
+				$bonuses[$type] = $charges;
+				set($game, 'bonuses', $bonuses);
+				$result = $game->replay([['move', 3]]);
+				same($charges + 1, $result['state']['bonuses'][$type], 'First milestone immediately grants a charge below the cap: v' . $version . ' ' . $type);
+				if ($version === 2) {
+					same(0, $result['state']['pendingBonuses'][$type], 'Immediate reward does not also create a banked charge');
+				}
+			}
+		}
+	}
+	foreach ([[128, 'undo'], [256, 'swap'], [512, 'remove']] as [$value, $type]) {
+		$game = onBoard([[intdiv($value, 2), intdiv($value, 2), 2, 4], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], 2);
+		$result = $game->replay([['move', 3]]);
+		same(2, $result['state']['bonuses'][$type], 'Banked reward keeps the displayed cap: ' . $type);
+		same(1, $result['state']['pendingBonuses'][$type], 'First full-cap reward is retained: ' . $type);
+		same(true, $result['state']['reached']->{$value}, 'Banking still claims the first milestone');
+		rejects(fn() => $game->replay([['swap', 0, 0, 0, 0]]), 'Rejected action cannot redeem a pending reward');
+		same(1, $game->state()['pendingBonuses'][$type], 'Rejected action leaves the bank untouched');
+		$firstUse = match ($type) {
+			'undo' => ['undo'],
+			'swap' => ['swap', 0, 0, 1, 0],
+			'remove' => ['remove', 2],
+		};
+		$result = $game->replay([$firstUse]);
+		same(2, $result['state']['bonuses'][$type], 'First successful use redeems the earned reward: ' . $type);
+		same(0, $result['state']['pendingBonuses'][$type], 'Earned reward is cleared after one redemption: ' . $type);
+		$secondUse = match ($type) {
+			'undo' => [['move', 3], ['undo']],
+			'swap' => [['swap', 0, 0, 1, 0]],
+			'remove' => [['remove', 4]],
+		};
+		$result = $game->replay($secondUse);
+		same(1, $result['state']['bonuses'][$type], 'Second use spends a real charge: ' . $type);
+		same(0, $result['state']['pendingBonuses'][$type], 'A banked reward cannot be redeemed twice');
+		same(true, $result['state']['reached']->{$value}, 'Undo does not reset claimed reward eligibility');
+	}
+	$game = onBoard([[64, 64, 2, 4], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], 2);
+	$result = $game->replay([['move', 3], ['undo'], ['move', 3], ['undo'], ['move', 3], ['undo']]);
+	same(0, $result['state']['bonuses']['undo'], 'Only one retained reward permits a third Undo; repeated merges cannot farm more');
+	same(0, $result['state']['pendingBonuses']['undo'], 'Undo farming exhausts the one retained reward');
+	rejects(fn() => $game->replay([['move', 3], ['undo']]), 'Repeated same milestone does not permit a fourth Undo');
+	$legacy = onBoard([[64, 64, 2, 4], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], 1);
+	$result = $legacy->replay([['move', 3], ['undo'], ['move', 3], ['undo']]);
+	same(0, $result['state']['bonuses']['undo'], 'Version 1 still discards the first full-cap reward');
+	same(false, array_key_exists('pendingBonuses', $legacy->savedState()), 'Legacy restoration omits the new ledger');
 	$game = onBoard([[1024, 1024, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]);
 	$result = $game->replay([['move', 3], ['continue'], ['undo']]);
 	same(false, $result['state']['won'], 'Undo restores pre-win flag');
@@ -165,7 +223,7 @@ namespace {
 	};
 	$sessions = new GameSession($config, $time);
 	$issued = $sessions->issue('alice');
-	same(1, $issued['version'], 'Protocol version');
+	same(2, $issued['version'], 'New sessions use protocol version 2');
 	same(true, $issued['seed'] >= 1 && $issued['seed'] <= 0xffffffff, 'Random seed fits unsigned 32 bits');
 	$verified = $sessions->verify('alice', $issued['token'], []);
 	same(json_encode((new GameEngine($issued['seed']))->replay([])), json_encode($verified), 'Valid signature replays the signed seed');
@@ -194,7 +252,7 @@ namespace {
 		return $payload . '.' . $encode(hash_hmac('sha256', "twentyfortyeight\0alice\0\0" . $payload, 'test-secret', true));
 	}
 	$time->now = 1_800_000_000;
-	foreach ([['v' => 2, 's' => 1, 'iat' => $time->now], ['v' => 1, 's' => 0, 'iat' => $time->now], ['v' => 1, 's' => '1', 'iat' => $time->now], ['v' => 1, 's' => 1, 'iat' => (string)$time->now], ['v' => 1, 's' => 1, 'iat' => $time->now, 'extra' => true]] as $payload) {
+	foreach ([['v' => 3, 's' => 1, 'iat' => $time->now], ['v' => 1, 's' => 0, 'iat' => $time->now], ['v' => 1, 's' => '1', 'iat' => $time->now], ['v' => 1, 's' => 1, 'iat' => (string)$time->now], ['v' => 1, 's' => 1, 'iat' => $time->now, 'extra' => true]] as $payload) {
 		rejects(fn() => $sessions->verify('alice', tokenFor($payload), []), 'Signed payload still validates schema');
 	}
 	$sessions->revoke('bob');
@@ -216,7 +274,7 @@ namespace {
 		throw new RuntimeException('JavaScript replay fixtures must not be empty');
 	}
 	foreach ($fixtures as $fixture) {
-		$engine = new GameEngine($fixture['seed']);
+		$engine = new GameEngine($fixture['seed'], $fixture['version']);
 		$actual = $engine->replay($fixture['actions']);
 		// Decode reached into an array on both sides for JSON object comparison.
 		$actual = json_decode(json_encode($actual, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
@@ -231,6 +289,16 @@ namespace {
 		if ($fixture['name'] === 'mixed-merge') {
 			same($fixtures[0]['savedState']['grid'], $savedState['previous']['grid'], 'Serialized undo snapshot restores the preceding browser grid');
 			same(0, $savedState['previous']['score'], 'Undo snapshot preserves the preceding score');
+		}
+		if ($fixture['version'] === 1) {
+			// Upgrading the signed session may repair charges, but must never
+			// reject its valid past actions or change the game they produced.
+			$upgraded = (new GameEngine($fixture['seed'], 2))->replay($fixture['actions']);
+			$upgraded = json_decode(json_encode($upgraded, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
+			$legacyWithoutCharges = $actual;
+			unset($upgraded['state']['pendingBonuses'], $upgraded['state']['bonuses'], $upgraded['state']['canUndo']);
+			unset($legacyWithoutCharges['state']['bonuses'], $legacyWithoutCharges['state']['canUndo']);
+			same($legacyWithoutCharges, $upgraded, 'Version 2 preserves legacy replay board, RNG and historical statistics: ' . $fixture['name']);
 		}
 	}
 	echo 'Replay checks passed: ' . $checks . "\n";

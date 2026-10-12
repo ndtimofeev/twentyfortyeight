@@ -109,7 +109,7 @@ def main():
     assert one.request("/api/games")["game"] == initial
     assert isinstance(initial["revision"], int) and initial["actions"] == []
     session = initial["session"]
-    assert session["version"] == 1 and 1 <= session["seed"] <= 0xFFFFFFFF
+    assert session["version"] == 2 and 1 <= session["seed"] <= 0xFFFFFFFF
     assert isinstance(session["token"], str) and "." in session["token"]
     forged = {"session": "", "actions": [], "score": 999999, "bestTile": 131072, "moves": 1}
     one.request("/api/scores", forged, expected=400)
@@ -162,7 +162,7 @@ def main():
     assert active["state"]["score"] == proof["expected"]["score"]
     assert active["state"]["maxTile"] == proof["expected"]["bestTile"]
     assert 1 <= active["state"]["randomState"] <= 0xFFFFFFFF
-    for field in ("grid", "bonuses", "reached", "previous", "over", "won", "keepPlaying", "moves"):
+    for field in ("grid", "bonuses", "pendingBonuses", "reached", "previous", "over", "won", "keepPlaying", "moves"):
         assert field in active["state"], f"The saved board omitted {field}"
     assert one.request("/api/games")["game"] == active
     assert one.request("/api/games", {})["game"] == active

@@ -21,7 +21,7 @@ function load(savedState, options = {}) {
 	ctx.Storage = class {
 		constructor() {
 			this.actions = stored.actions
-			if (options.seed) this.session = { seed: options.seed }
+			if (options.seed) this.session = { seed: options.seed, version: options.version || 1 }
 		}
 		getBestScore() { return 0 }
 		setBestScore() {}
@@ -37,6 +37,7 @@ function load(savedState, options = {}) {
 		ctx.Storage.prototype.startNewGame = function () {
 			stored.restarts = (stored.restarts || 0) + 1
 			stored.state = null
+			this.gameTransitioning = false
 		}
 		ctx.BonusUI.prototype.cancel = function () { stored.selectionCancelled = true }
 	}
@@ -70,6 +71,18 @@ const LEFT = 3
 const ONE_MOVE_FROM_STUCK = [[8, 2, 8, 2], [2, 8, 2, 8], [4, 16, 4, 16], [32, 64, 128, 0]]
 const EMPTY = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]
 const withRow = (y, row) => EMPTY.map((r, i) => (i === y ? row : r))
+const MILESTONES = [[128, 'undo'], [256, 'swap'], [512, 'remove']]
+const copy = value => JSON.parse(JSON.stringify(value))
+
+function spendBonus(game, type) {
+	if (type === 'undo') return game.undo()
+	const tiles = game.grid.cells.flat().filter(Boolean)
+	if (type === 'remove') return game.removeTilesOfValue(tiles[0].value)
+	const first = tiles[0]
+	const second = tiles.find(tile => tile.value !== first.value)
+	assert.ok(second, 'a successful swap needs two different values')
+	return game.swapTiles({ x: first.x, y: first.y }, { x: second.x, y: second.y })
+}
 
 test('a new game starts with two charges of each bonus', () => {
 	const { game } = load()
@@ -187,6 +200,157 @@ test('undo and redo of a merge does not farm charges', () => {
 	game.undo()
 	assert.strictEqual(game.bonuses.undo, 0)
 	assert.strictEqual(game.undo(), false)
+})
+
+test('new local games use v2 while sessions without an explicit version retain v1 rules', () => {
+	const local = load().game
+	assert.strictEqual(local.rulesVersion, 2)
+	assert.deepStrictEqual(copy(local.serialize().pendingBonuses), { undo: 0, swap: 0, remove: 0 })
+	const legacy = load(null, { seed: 42 }).game
+	assert.strictEqual(legacy.rulesVersion, 1)
+	assert.strictEqual(Object.hasOwn(legacy.serialize(), 'pendingBonuses'), false)
+	delete legacy.storageManager.session.version
+	legacy.initializeState(null)
+	assert.strictEqual(legacy.rulesVersion, 1)
+	assert.strictEqual(Object.hasOwn(legacy.serialize(), 'pendingBonuses'), false)
+	assert.strictEqual(load(null, { seed: 42, version: 2 }).game.rulesVersion, 2)
+})
+
+test('v2 banks each first milestone at the full cap and redeems it on one successful use', () => {
+	for (const [value, type] of MILESTONES) {
+		const env = load(null, { seed: 42, version: 2 })
+		const { game } = env
+		setBoard(env, withRow(0, [value / 2, value / 2, 0, 0]))
+		game.move(LEFT)
+		assert.strictEqual(game.bonuses[type], 2, type + ': cap is unchanged')
+		assert.strictEqual(game.pendingBonuses[type], 1, type + ': first milestone is banked')
+		assert.strictEqual(game.reached[value], true)
+		assert.strictEqual(spendBonus(game, type), true)
+		assert.strictEqual(game.bonuses[type], 2, type + ': use spends one charge and redeems the banked charge')
+		assert.strictEqual(game.pendingBonuses[type], 0)
+		if (type === 'undo') game.move(LEFT)
+		assert.strictEqual(spendBonus(game, type), true)
+		assert.strictEqual(game.bonuses[type], 1, type + ': the next use spends a charge normally')
+		assert.strictEqual(game.pendingBonuses[type], 0)
+		setBoard(env, withRow(0, [value / 2, value / 2, 0, 0]))
+		game.move(LEFT)
+		assert.strictEqual(game.bonuses[type], 1, type + ': repeating the milestone cannot refill the bank')
+		assert.strictEqual(game.pendingBonuses[type], 0)
+	}
+})
+
+test('v1 preserves the original capped milestone behavior and restoration shape', () => {
+	for (const [value, type] of MILESTONES) {
+		const env = load(null, { seed: 42, version: 1 })
+		setBoard(env, withRow(0, [value / 2, value / 2, 0, 0]))
+		env.game.move(LEFT)
+		assert.strictEqual(env.game.bonuses[type], 2)
+		assert.strictEqual(Object.hasOwn(env.stored.state, 'pendingBonuses'), false)
+		assert.strictEqual(spendBonus(env.game, type), true)
+		assert.strictEqual(env.game.bonuses[type], 1, type + ': v1 discards an award earned at the cap')
+		const resumed = load(env.stored.state, { seed: 42, version: 1, actions: copy(env.stored.actions) })
+		setBoard(resumed, withRow(0, [value / 2, value / 2, 0, 0]))
+		resumed.game.move(LEFT)
+		assert.strictEqual(resumed.game.bonuses[type], 1)
+		assert.strictEqual(Object.hasOwn(resumed.stored.state, 'pendingBonuses'), false)
+	}
+})
+
+test('both rules versions grant an immediate first award with capacity and never grant a second one', () => {
+	for (const version of [1, 2]) for (const [value, type] of MILESTONES) for (const charges of [0, 1]) {
+		const env = load(null, { seed: 42, version })
+		setBoard(env, withRow(0, [value / 2, value / 2, 0, 0]))
+		env.game.bonuses[type] = charges
+		env.game.move(LEFT)
+		assert.strictEqual(env.game.bonuses[type], charges + 1)
+		if (version === 2) assert.strictEqual(env.game.pendingBonuses[type], 0)
+		setBoard(env, withRow(0, [value / 2, value / 2, 0, 0]))
+		env.game.move(LEFT)
+		assert.strictEqual(env.game.bonuses[type], charges + 1)
+		if (version === 2) assert.strictEqual(env.game.pendingBonuses[type], 0)
+	}
+})
+
+test('v2 full-cap 128, Undo, redo and Undo uses the banked charge exactly once across reloads', () => {
+	let env = load(null, { seed: 42, version: 2 })
+	setBoard(env, withRow(0, [64, 64, 0, 0]))
+	env.game.move(LEFT)
+	assert.strictEqual(env.game.pendingBonuses.undo, 1)
+	env = load(env.stored.state, { seed: 42, version: 2, actions: copy(env.stored.actions) })
+	assert.strictEqual(env.game.pendingBonuses.undo, 1)
+	assert.ok(env.game.undo())
+	assert.strictEqual(env.game.bonuses.undo, 2)
+	assert.strictEqual(env.game.pendingBonuses.undo, 0)
+	assert.deepStrictEqual(board(env.game)[0], [64, 64, 0, 0])
+	assert.strictEqual(env.game.reached[128], true)
+	env = load(env.stored.state, { seed: 42, version: 2, actions: copy(env.stored.actions) })
+	env.game.move(LEFT)
+	assert.strictEqual(env.game.bonuses.undo, 2)
+	assert.strictEqual(env.game.pendingBonuses.undo, 0)
+	assert.ok(env.game.undo())
+	assert.strictEqual(env.game.bonuses.undo, 1)
+	assert.strictEqual(env.game.pendingBonuses.undo, 0)
+	assert.deepStrictEqual(env.stored.actions, [['move', LEFT], ['undo'], ['move', LEFT], ['undo']])
+})
+
+test('v2 reload and remote restoration retain banked awards for all three bonus types', () => {
+	for (const [value, type] of MILESTONES) {
+		const source = load(null, { seed: 42, version: 2 })
+		setBoard(source, withRow(0, [value / 2, value / 2, 0, 0]))
+		source.game.move(LEFT)
+		const saved = copy(source.stored.state)
+		const resumed = load(copy(saved), { seed: 42, version: 2, actions: copy(source.stored.actions) })
+		const remote = load(null, { seed: 42, version: 2, sharedGame: true })
+		remote.stored.remoteChange(copy(saved))
+		for (const env of [resumed, remote]) {
+			assert.strictEqual(env.game.pendingBonuses[type], 1)
+			assert.strictEqual(env.game.reached[value], true)
+			assert.strictEqual(spendBonus(env.game, type), true)
+			assert.strictEqual(env.game.bonuses[type], 2)
+			assert.strictEqual(env.game.pendingBonuses[type], 0)
+		}
+		assert.deepStrictEqual(saved, source.stored.state, 'restored games do not mutate the original saved state')
+	}
+})
+
+test('v2 Undo preserves another bonus type\'s banked award and restart clears all banks', () => {
+	const env = load(null, { seed: 42, version: 2 })
+	setBoard(env, withRow(0, [256, 256, 0, 0]))
+	env.game.move(LEFT)
+	assert.strictEqual(env.game.pendingBonuses.remove, 1)
+	assert.ok(env.game.undo())
+	assert.strictEqual(env.game.bonuses.undo, 1)
+	assert.strictEqual(env.game.pendingBonuses.remove, 1)
+	assert.strictEqual(env.game.reached[512], true)
+	env.game.move(LEFT)
+	assert.strictEqual(env.game.pendingBonuses.remove, 1)
+	assert.ok(env.game.removeTilesOfValue(512))
+	assert.strictEqual(env.game.bonuses.remove, 2)
+	assert.strictEqual(env.game.pendingBonuses.remove, 0)
+	setBoard(env, withRow(0, [64, 64, 128, 128]))
+	env.game.move(LEFT)
+	assert.strictEqual(env.game.pendingBonuses.swap, 1)
+	env.game.restart()
+	assert.deepStrictEqual(copy(env.game.bonuses), { undo: 2, swap: 2, remove: 2 })
+	assert.deepStrictEqual(copy(env.game.pendingBonuses), { undo: 0, swap: 0, remove: 0 })
+	assert.deepStrictEqual(copy(env.game.reached), {})
+})
+
+test('v2 rejected bonus actions and a no-op move do not consume banked awards', () => {
+	const env = load(null, { seed: 42, version: 2 })
+	setBoard(env, [[64, 64, 128, 128], [256, 256, 2, 4], ...EMPTY.slice(2)])
+	env.game.move(LEFT)
+	assert.deepStrictEqual(copy(env.game.pendingBonuses), { undo: 1, swap: 1, remove: 1 })
+	setBoard(env, withRow(0, [2, 4, 8, 16]))
+	const before = copy(env.game.serialize())
+	const actions = copy(env.stored.actions)
+	env.game.move(LEFT)
+	assert.strictEqual(env.game.undo(), false)
+	assert.strictEqual(env.game.swapTiles({ x: 0, y: 0 }, { x: 0, y: 0 }), false)
+	assert.strictEqual(env.game.swapTiles({ x: 0, y: 0 }, { x: 0, y: 1 }), false)
+	assert.strictEqual(env.game.removeTilesOfValue(8192), false)
+	assert.deepStrictEqual(copy(env.game.serialize()), before)
+	assert.deepStrictEqual(env.stored.actions, actions)
 })
 
 test('restart gives fresh charges and forgets reached tiles', () => {
@@ -659,13 +823,85 @@ test('continuation cannot change or log a game beyond the action limit', () => {
 	assert.strictEqual(env.game.isGameTerminated(), true)
 })
 
+test('an active game transition blocks play while New Game can cancel it', () => {
+	const env = load(null, { seed: 42, version: 2 })
+	setBoard(env, withRow(0, [2, 4, 0, 0]))
+	env.game.move(2)
+	env.game.storageManager.gameTransitioning = true
+	const before = copy(env.game.serialize())
+	const actions = copy(env.stored.actions)
+	assert.strictEqual(env.game.canRecordAction(), false)
+	env.game.move(0)
+	assert.strictEqual(env.game.undo(), false)
+	assert.strictEqual(env.game.swapTiles({ x: 0, y: 3 }, { x: 1, y: 3 }), false)
+	assert.strictEqual(env.game.removeTilesOfValue(2), false)
+	assert.deepStrictEqual(copy(env.game.serialize()), before)
+	assert.deepStrictEqual(env.stored.actions, actions)
+	env.game.storageManager.gameTransitioning = false
+	assert.strictEqual(env.game.canRecordAction(), true)
+	assert.strictEqual(env.game.undo(), true)
+	assert.strictEqual(env.stored.actions.length, actions.length + 1)
+
+	const won = load(null, { seed: 42, version: 2 })
+	setBoard(won, withRow(0, [1024, 1024, 0, 0]))
+	won.game.move(LEFT)
+	won.game.storageManager.gameTransitioning = true
+	assert.strictEqual(won.game.inputManager.events.keepPlaying(), false)
+	assert.strictEqual(won.game.keepPlaying, false)
+	assert.deepStrictEqual(won.stored.actions, [['move', LEFT]])
+	won.game.storageManager.gameTransitioning = false
+	assert.strictEqual(won.game.inputManager.events.keepPlaying(), true)
+
+	const restarted = load(null, { seed: 42, version: 2, sharedGame: true })
+	restarted.game.move(0)
+	assert.ok(restarted.game.moves > 0)
+	restarted.game.storageManager.gameTransitioning = true
+	restarted.game.restart()
+	assert.strictEqual(restarted.stored.restarts, 1, 'New Game explicitly cancels the pending transition')
+	assert.strictEqual(restarted.game.moves, 0)
+	assert.strictEqual(restarted.game.canRecordAction(), true)
+	assert.deepStrictEqual(copy(restarted.game.pendingBonuses), { undo: 0, swap: 0, remove: 0 })
+})
+
+test('v2 banked awards survive genuine seeded histories, reload, successful use and deterministic replay', () => {
+	const { createGame, apply, chooseMove } = require('./generate_replay_fixtures')
+	for (const [value, type] of MILESTONES) {
+		let env = createGame(42, null, null, 2)
+		for (let i = 0; i < 2500 && !env.game.reached[value] && !env.game.isGameTerminated(); i++) {
+			const direction = chooseMove(env.game)
+			assert.notStrictEqual(direction, null, 'the seeded history must reach ' + value)
+			const count = env.stored.actions.length
+			apply(env, ['move', direction])
+			assert.strictEqual(env.stored.actions.length, count + 1)
+		}
+		assert.strictEqual(env.game.reached[value], true, 'genuine first ' + value)
+		assert.strictEqual(env.game.bonuses[type], 2)
+		assert.strictEqual(env.game.pendingBonuses[type], 1)
+		const saved = copy(env.stored.state)
+		env = createGame(42, saved, copy(env.stored), 2)
+		assert.strictEqual(env.game.pendingBonuses[type], 1)
+		assert.strictEqual(spendBonus(env.game, type), true)
+		assert.strictEqual(env.game.bonuses[type], 2)
+		assert.strictEqual(env.game.pendingBonuses[type], 0)
+		assert.strictEqual(env.game.reached[value], true)
+		const replayed = createGame(42, null, null, 2)
+		for (const action of env.stored.actions) {
+			const count = replayed.stored.actions.length
+			apply(replayed, action)
+			assert.strictEqual(replayed.stored.actions.length, count + 1)
+		}
+		assert.deepStrictEqual(copy(replayed.game.serialize()), copy(env.game.serialize()), type + ': actual replay restores all state')
+		assert.deepStrictEqual(replayed.stored.actions, env.stored.actions)
+	}
+})
+
 test('golden replay fixtures match the real browser rules, including a genuine 2048 win', () => {
 	const { createGame, apply, expected } = require('./generate_replay_fixtures')
 	const fixtures = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'replay.json'), 'utf8'))
 	assert.ok(fixtures.some(f => f.expected.state.won && f.expected.state.keepPlaying), 'verified continuation included')
 	assert.ok(fixtures.some(f => f.expected.state.over), 'game-over included')
 	for (const fixture of fixtures) {
-		const env = createGame(fixture.seed)
+		const env = createGame(fixture.seed, null, null, fixture.version || 1)
 		for (const action of fixture.actions) {
 			const length = env.stored.actions.length
 			apply(env, action)
@@ -679,7 +915,7 @@ test('golden replay fixtures match the real browser rules, including a genuine 2
 			peakScore: fixture.savedState.peakScore,
 			movesAtPeakScore: fixture.expected.movesAtPeakScore,
 			bestTileEver: fixture.expected.bestTileEver
-		})
+		}, fixture.version || 1)
 		assert.deepStrictEqual(serialized(resumed.game), fixture.savedState, fixture.name + ': restoration round trip')
 	}
 })

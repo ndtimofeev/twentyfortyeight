@@ -135,6 +135,19 @@ test('game actions use native buttons and expose live status and board cells', (
 	assert.match(template, /<output class="score-container" aria-labelledby="tfe-score-label"[^>]*>0<\/output>/)
 })
 
+test('earned charges held at the cap are visible and announced separately from ready charges', () => {
+	const env = fixture()
+	env.game.pendingBonuses = { undo: 1, swap: 0, remove: 0 }
+	env.ui.update()
+	assert.equal(env.buttons.undo.querySelector('.bonus-count').textContent, '2')
+	assert.equal(env.buttons.undo.querySelector('.bonus-count').getAttribute('data-pending'), '1')
+	assert.match(env.buttons.undo.getAttribute('aria-label'), /one earned charge held until the next use/)
+	env.game.pendingBonuses.undo = 0
+	env.ui.update()
+	assert.equal(env.buttons.undo.querySelector('.bonus-count').getAttribute('data-pending'), '0')
+	assert.doesNotMatch(env.buttons.undo.getAttribute('aria-label'), /held/)
+})
+
 test('Swap selects two tiles with arrows and Enter/Space without moving the game', () => {
 	const env = fixture()
 	env.buttons.swap.focus()

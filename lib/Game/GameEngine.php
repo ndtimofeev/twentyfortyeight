@@ -6,9 +6,9 @@ namespace OCA\TwentyFortyEight\Game;
 
 use InvalidArgumentException;
 
-/** Deterministic version 1 rules, shared with the browser's recorded games. */
+/** Deterministic, versioned rules shared with the browser's recorded games. */
 final class GameEngine {
-	public const VERSION = 1;
+	public const VERSION = 2;
 	public const MAX_ACTIONS = 50_000;
 	private const SIZE = 4;
 	private const BONUS_MILESTONES = [128 => 'undo', 256 => 'swap', 512 => 'remove'];
@@ -23,21 +23,31 @@ final class GameEngine {
 	private bool $over = false;
 	private bool $keepPlaying = false;
 	private array $bonuses = ['undo' => 2, 'swap' => 2, 'remove' => 2];
+	private array $pendingBonuses = ['undo' => 0, 'swap' => 0, 'remove' => 0];
+	private int $rulesVersion;
 	private array $reached = [];
 	private ?array $previous = null;
 	private int $peakScore = 0;
 	private int $movesAtPeakScore = 0;
 	private int $bestTileEver = 0;
 
-	public function __construct(int $seed) {
+	public function __construct(int $seed, int $version = self::VERSION) {
 		if (PHP_INT_SIZE < 8 || $seed < 1 || $seed > 0xffffffff) {
 			throw new InvalidArgumentException('Invalid game seed');
 		}
+		if (!in_array($version, [1, 2], true)) {
+			throw new InvalidArgumentException('Unsupported game rules version');
+		}
+		$this->rulesVersion = $version;
 		$this->rng = $seed;
 		$this->board = array_fill(0, self::SIZE, array_fill(0, self::SIZE, 0));
 		$this->addRandomTile();
 		$this->addRandomTile();
 		$this->rememberStats();
+	}
+
+	public function getRulesVersion(): int {
+		return $this->rulesVersion;
 	}
 
 	/**
@@ -66,7 +76,7 @@ final class GameEngine {
 
 	/** State is exposed for cross-language conformance tests; never accepts client state. */
 	public function state(): array {
-		return [
+		$state = [
 			'board' => $this->board,
 			'score' => $this->score,
 			'moves' => $this->moves,
@@ -78,6 +88,10 @@ final class GameEngine {
 			'canUndo' => $this->previous !== null && $this->bonuses['undo'] > 0,
 			'rng' => $this->rng,
 		];
+		if ($this->rulesVersion === 2) {
+			$state['pendingBonuses'] = $this->pendingBonuses;
+		}
+		return $state;
 	}
 
 	/** Browser restoration state derived exclusively from verified actions. */
@@ -89,7 +103,7 @@ final class GameEngine {
 			'won' => $this->previous['won'],
 			'over' => $this->previous['over'],
 		];
-		return [
+		$state = [
 			'grid' => $this->serializeGrid($this->board),
 			'score' => $this->score,
 			'over' => $this->over,
@@ -101,8 +115,12 @@ final class GameEngine {
 			'reached' => (object)$this->reached,
 			'previous' => $previous,
 			'randomState' => $this->rng,
-			'peakScore' => $this->peakScore,
 		];
+		if ($this->rulesVersion === 2) {
+			$state['pendingBonuses'] = $this->pendingBonuses;
+		}
+		$state['peakScore'] = $this->peakScore;
+		return $state;
 	}
 
 	/** Grid.serialize()/Tile.serialize() shape, with columns before rows. */
@@ -139,7 +157,7 @@ final class GameEngine {
 					$this->{$key} = $value;
 				}
 				$this->previous = null;
-				$this->bonuses['undo']--;
+				$this->useBonusCharge('undo');
 				return;
 			case 'swap':
 				if (count($action) !== 5) {
@@ -236,7 +254,7 @@ final class GameEngine {
 			$this->board[$x2][$y2] = $b;
 			throw new InvalidArgumentException('Swap would leave no moves');
 		}
-		$this->bonuses['swap']--;
+		$this->useBonusCharge('swap');
 		$this->previous = null;
 	}
 
@@ -260,7 +278,7 @@ final class GameEngine {
 			$this->addRandomTile();
 			$this->addRandomTile();
 		}
-		$this->bonuses['remove']--;
+		$this->useBonusCharge('remove');
 		$this->previous = null;
 	}
 
@@ -268,6 +286,18 @@ final class GameEngine {
 		$type = self::BONUS_MILESTONES[$value] ?? null;
 		if ($type !== null && !isset($this->reached[$value])) {
 			$this->reached[$value] = true;
+			if ($this->bonuses[$type] < 2) {
+				$this->bonuses[$type]++;
+			} elseif ($this->rulesVersion === 2) {
+				$this->pendingBonuses[$type] = 1;
+			}
+		}
+	}
+
+	private function useBonusCharge(string $type): void {
+		$this->bonuses[$type]--;
+		if ($this->rulesVersion === 2 && $this->pendingBonuses[$type] === 1) {
+			$this->pendingBonuses[$type] = 0;
 			$this->bonuses[$type] = min(2, $this->bonuses[$type] + 1);
 		}
 	}

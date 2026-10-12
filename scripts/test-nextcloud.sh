@@ -13,6 +13,7 @@ repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 container_name="twentyfortyeight-test-${nextcloud_version}-$$"
 test_password="$(python3 -c 'import secrets; print(secrets.token_hex(24))')"
 image_name="nextcloud:${nextcloud_version}-apache"
+legacy_fixture=""
 
 cleanup() {
   result=$?
@@ -21,6 +22,7 @@ cleanup() {
     docker exec "$container_name" tail -n 100 /var/www/html/data/nextcloud.log >&2 || true
   fi
   docker rm --force --volumes "$container_name" >/dev/null 2>&1 || true
+  if [ -n "$legacy_fixture" ]; then rm -f "$legacy_fixture"; fi
   exit "$result"
 }
 trap cleanup EXIT
@@ -70,6 +72,12 @@ done
 
 TEST_NEXTCLOUD_PASSWORD="$test_password" python3 "$repo_dir/scripts/smoke-nextcloud.py" "$test_url"
 if [ -n "${TEST_BROWSER_SMOKE:-}" ]; then
-  TEST_NEXTCLOUD_PASSWORD="$test_password" node "$TEST_BROWSER_SMOKE" "$test_url"
+  docker exec --user www-data --env "OC_PASS=$test_password" "$container_name" \
+    php occ user:add --password-from-env smoke-legacy
+  legacy_fixture="$(mktemp)"
+  docker exec --user www-data --env TFE_ISOLATED_TEST=1 "$container_name" \
+    php custom_apps/twentyfortyeight/scripts/seed-legacy-game.php > "$legacy_fixture"
+  TEST_NEXTCLOUD_PASSWORD="$test_password" TEST_LEGACY_GAME_FILE="$legacy_fixture" \
+    node "$TEST_BROWSER_SMOKE" "$test_url"
 fi
 echo "Nextcloud $nextcloud_version integration checks passed."

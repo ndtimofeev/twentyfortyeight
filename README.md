@@ -13,7 +13,7 @@ of the instance.
   board, score, bonuses, Undo snapshot and random state. Opening the app in
   another browser or device resumes that game. Browser `localStorage`, separated
   by user and installation URL, also keeps a copy for offline play.
-* **Bonuses** (buttons under the board, two charges each, never more than two):
+* **Bonuses** (buttons under the board, two ready charges each):
   * *Undo* takes back the last move (one level); one more charge when the first
     128 tile of a game is made.
   * *Swap* trades two tiles with different values; one more charge at the first 256.
@@ -21,13 +21,16 @@ of the instance.
   * *Remove* deletes all tiles with the value of the picked tile; one more charge
     at the first 512.
 
-  A charge is earned only the first time that tile is made in a game, and neither
-  charges nor that record are rolled back by Undo (otherwise undo + redo would
-  farm charges). Swap and Remove are not moves: no new tile appears, and they
+  A charge is earned only the first time that tile is made in a game. If the two
+  ready charges are full, the earned charge is held and shown as `+1` on the
+  counter. The next successful use spends a ready charge and moves the held
+  charge into its place. Neither earned charges nor the milestone record are
+  rolled back by Undo, so undoing and repeating the merge cannot earn another
+  charge. Swap and Remove are not moves: no new tile appears, and they
   clear the undo snapshot. If Remove clears the entire board, two starting
   tiles appear so the game can continue. On the game over / win screen only
-  Undo works. Charges, the undo snapshot, the biggest tile and the Keep going
-  choice are saved with the running game.
+  Undo works. Ready and held charges, the undo snapshot, the biggest tile and
+  the Keep going choice are saved with the running game.
 * All controls work with a keyboard. In Swap/Remove mode, arrows select a cell,
   Enter/Space picks a tile and Escape cancels. Ordinary moves use arrows,
   WASD or HJKL; R starts a new game.
@@ -57,6 +60,13 @@ The routes require Nextcloud authentication and CSRF protection and are rate
 limited. A game token lasts 90 days; a game is limited to 50,000 successful
 actions. Deleting an account revokes its tokens and removes its records and
 active game.
+
+Rules version 2 keeps earned charges when the ready supply is full. Version 1
+proofs still replay with their original rules, so older pending score submissions
+remain verifiable. When an active version 1 game is loaded, the server upgrades
+it to version 2 with the same seed and action history. The replacement session
+includes `previousToken` to link the upgrade. The browser carries a compatible
+unsent local tail into the new session before replacing its board.
 
 A connection is required to start a new verified game. An existing saved game
 can continue offline. Successful actions are saved after a short debounce,
@@ -90,6 +100,12 @@ verified leaderboard. Installation migrations do not delete the legacy data.
 Version 0.3.0 adds server storage for active games. An existing signed browser
 game is adopted when the account has no active server game yet; verified
 leaderboard records are retained.
+
+Version 0.4.0 fixes the loss of a milestone charge earned while the ready supply
+was full. Existing active games are replayed and upgraded automatically, including
+recovering those earned charges; the board, score, random stream and action
+history are preserved. An offline version 1 game keeps its original rules until
+it reconnects and completes the upgrade.
 
 ## Layout
 

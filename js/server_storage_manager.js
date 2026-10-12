@@ -29,6 +29,9 @@ function ServerStorageManager() {
   this.gameRetryAttempts = 0;
   this.gameRetryAt = 0;
   this.gamePaused = false;
+  this.gameTransitioning = false;
+  this.gamePromotion = null;
+  this.gameConflictAttempts = 0;
   this.preparingGame = false;
   this.restartRequested = false;
   this.gameListeners = [];
@@ -313,12 +316,12 @@ ServerStorageManager.prototype.validLocalGame = function (state) {
   var session = state && state.session;
   return this.validSavedState(state) && session && typeof session.token === "string" && session.token &&
     Number.isInteger(session.seed) && session.seed > 0 && session.seed <= 0xffffffff &&
-    (session.version === undefined || session.version === 1) && Array.isArray(state.actions) &&
+    (session.version === undefined || session.version === 1 || session.version === 2) && Array.isArray(state.actions) &&
     state.actions.length <= 50000 && state.actions.every(this.validAction);
 };
 
 ServerStorageManager.prototype.serverState = function (game) {
-  if (!game || !game.session || game.session.version !== 1 ||
+  if (!game || !game.session || (game.session.version !== 1 && game.session.version !== 2) ||
       !Number.isInteger(game.revision) || game.revision < 0) throw new Error("Invalid active game response");
   var state = Object.assign({}, game.state, {
     session: game.session, actions: this.copyActions(game.actions || []), revision: game.revision
@@ -331,8 +334,67 @@ ServerStorageManager.prototype.onGameChange = function (callback) {
   this.gameListeners.push(callback);
 };
 
+ServerStorageManager.prototype.isUpgrade = function (oldSession, newSession) {
+  return !!oldSession && !!newSession && (oldSession.version === undefined || oldSession.version === 1) &&
+    newSession.version === 2 && newSession.previousToken === oldSession.token && newSession.seed === oldSession.seed;
+};
+
+// Replay an offline version-1 tail under the server's signed version-2 session
+// before changing live rules or counters. No board supplied by the client is used.
+ServerStorageManager.prototype.promoteGame = function (initial, local, generation) {
+  if (this.gamePromotion && this.gamePromotion.generation === generation) return this.gamePromotion.promise;
+  var self = this;
+  var pending = this.replayUpgrade(initial, local, generation).then(function (response) {
+    if (self.gamePromotion && self.gamePromotion.promise === pending) self.gamePromotion = null;
+    return response;
+  }, function (error) {
+    if (self.gamePromotion && self.gamePromotion.promise === pending) self.gamePromotion = null;
+    throw error;
+  });
+  this.gamePromotion = { generation: generation, promise: pending };
+  return pending;
+};
+
+ServerStorageManager.prototype.replayUpgrade = async function (initial, local, generation) {
+  var target = initial;
+  var oldSession = local.session;
+  var actions = this.copyActions(local.actions);
+  this.gameTransitioning = true;
+  clearTimeout(this.gameTimer);
+  this.gameTimer = null;
+  try {
+    for (var attempt = 0; attempt < 3; attempt++) {
+      if (generation !== this.gameGeneration) return null;
+      try {
+        var saved = await this.request("PUT", { session: target.session.token, actions: actions, revision: target.revision }, this.gamesUrl);
+        this.serverState(saved.data.game);
+        return saved;
+      } catch (error) {
+        if (generation !== this.gameGeneration) return null;
+        if (error.status !== 409) throw error;
+        var latest = await this.request("GET", null, this.gamesUrl);
+        if (generation !== this.gameGeneration) return null;
+        var current = latest.data.game;
+        if (current === null) {
+          target = Object.assign({}, target, { revision: 0, actions: [] });
+          continue;
+        }
+        this.serverState(current);
+        var linked = current.session.token === target.session.token || this.isUpgrade(oldSession, current.session);
+        if (!linked || !this.isPrefix(current.actions, actions) || current.actions.length === actions.length) return latest;
+        target = current;
+      }
+    }
+    var busy = new Error("The game changed repeatedly. Your moves remain in this browser and will be retried.");
+    busy.status = 503;
+    throw busy;
+  } finally {
+    if (generation === this.gameGeneration) this.gameTransitioning = false;
+  }
+};
+
 ServerStorageManager.prototype.activateGame = function (state, savedActions, revision) {
-  this.session = Object.assign({}, state.session, { version: 1 });
+  this.session = Object.assign({}, state.session, { version: state.session.version || 1 });
   this.actions = this.copyActions(state.actions);
   this.gamePeakScore = state.peakScore || state.score || 0;
   this.gameBestTile = state.maxTile || 0;
@@ -343,6 +405,7 @@ ServerStorageManager.prototype.activateGame = function (state, savedActions, rev
   this.gamePaused = false;
   this.gameRetryAt = 0;
   this.gameRetryAttempts = 0;
+  this.gameConflictAttempts = 0;
   this.setGameState(state);
   if (this.gameDirty) this.scheduleGame(0);
   return this.activeState;
@@ -350,6 +413,8 @@ ServerStorageManager.prototype.activateGame = function (state, savedActions, rev
 
 ServerStorageManager.prototype.prepareGame = function (previousState) {
   var generation = ++this.gameGeneration;
+  this.gameTransitioning = false;
+  this.gamePromotion = null;
   this.preparingGame = true;
   clearTimeout(this.gameTimer);
   this.gameTimer = null;
@@ -377,11 +442,17 @@ ServerStorageManager.prototype.prepareGame = function (previousState) {
     }
     if (game === null) return self.request("POST", { restart: false }, self.gamesUrl);
     return response;
-  }).then(function (response) {
+  }).then(async function (response) {
     if (generation !== self.gameGeneration) return null;
     // The preceding branch already restored a local game for adoption.
     if (response && response.session) return response;
     var game = response && response.data.game;
+    if (local && self.isUpgrade(local.session, game && game.session) && self.isPrefix(game.actions, local.actions) &&
+        local.actions.length > game.actions.length) {
+      response = await self.promoteGame(game, local, generation);
+      if (generation !== self.gameGeneration) return null;
+      game = response.data.game;
+    }
     var server = self.serverState(game);
     self.preparingGame = false;
     self.appliedGameSequence = response.sequence;
@@ -413,6 +484,8 @@ ServerStorageManager.prototype.prepareGame = function (previousState) {
 ServerStorageManager.prototype.startNewGame = function () {
   ++this.gameGeneration;
   this.restartRequested = true;
+  this.gameTransitioning = false;
+  this.gamePromotion = null;
   this.gameDirty = false;
   this.activeState = null;
   this.gameInFlight = null;
@@ -425,7 +498,7 @@ ServerStorageManager.prototype.startNewGame = function () {
 };
 
 ServerStorageManager.prototype.scheduleGame = function (delay) {
-  if (!this.session || !this.gameDirty || this.gamePaused || this.preparingGame || this.restartRequested) return;
+  if (!this.session || !this.gameDirty || this.gamePaused || this.preparingGame || this.restartRequested || this.gameTransitioning) return;
   var due = Math.max(Date.now() + delay, this.gameRetryAt);
   if (this.gameTimer !== null && this.gameTimerDue <= due) return;
   clearTimeout(this.gameTimer);
@@ -434,7 +507,7 @@ ServerStorageManager.prototype.scheduleGame = function (delay) {
   this.gameTimer = setTimeout(function () { self.flushGame(); }, Math.max(0, due - Date.now()));
 };
 
-ServerStorageManager.prototype.receiveGame = function (game, sequence, notify) {
+ServerStorageManager.prototype.receiveGame = async function (game, sequence, notify) {
   if (sequence < this.appliedGameSequence) return;
   if (!game) {
     this.appliedGameSequence = sequence;
@@ -447,6 +520,15 @@ ServerStorageManager.prototype.receiveGame = function (game, sequence, notify) {
     return;
   }
   var state = this.serverState(game);
+  var generation = this.gameGeneration;
+  if (this.isUpgrade(this.session, game.session) && this.isPrefix(game.actions, this.actions) && this.actions.length > game.actions.length) {
+    var local = Object.assign({}, this.activeState, { session: this.session, actions: this.copyActions(this.actions) });
+    var promoted = await this.promoteGame(game, local, generation);
+    if (generation !== this.gameGeneration) return;
+    game = promoted.data.game;
+    sequence = promoted.sequence;
+    state = this.serverState(game);
+  }
   if (this.session && game.session.token === this.session.token && game.revision < this.gameRevision) return;
   this.appliedGameSequence = sequence;
   if (this.session && game.session.token === this.session.token && this.isPrefix(game.actions, this.actions) &&
@@ -460,34 +542,43 @@ ServerStorageManager.prototype.receiveGame = function (game, sequence, notify) {
     if (this.gameDirty) this.scheduleGame(0);
     return;
   }
-  var conflict = this.session && (game.session.token !== this.session.token || !this.isPrefix(this.actions, game.actions));
+  var sameParty = this.session && (game.session.token === this.session.token || this.isUpgrade(this.session, game.session));
+  var conflict = this.session && (!sameParty || !this.isPrefix(this.actions, game.actions));
+  var remoteSpending = sameParty && game.actions.length > this.actions.length && this.isPrefix(this.actions, game.actions) &&
+    this.activeState && ["undo", "swap", "remove"].some(function (type) {
+      return state.bonuses[type] < this.activeState.bonuses[type];
+    }, this);
   if (conflict && this.activeState) this.backupGame(this.activeState);
   ++this.gameGeneration; // Responses for the replaced local history are obsolete.
   this.activateGame(state, game.actions, game.revision);
   if (notify) {
-    var message = conflict ? "The game changed in another browser. Its latest position has been loaded." : "";
+    var message = conflict ? "The game changed in another browser. Its latest position has been loaded."
+      : remoteSpending ? "The game advanced in another browser. Its latest position has been loaded." : "";
     this.gameListeners.forEach(function (callback) { callback(state, message); });
   }
 };
 
 ServerStorageManager.prototype.sameGameState = function (left, right) {
   if (!left || !right) return false;
-  return ["grid", "score", "over", "won", "keepPlaying", "moves", "maxTile", "bonuses", "reached", "previous", "randomState"].every(function (key) {
+  return ["grid", "score", "over", "won", "keepPlaying", "moves", "maxTile", "bonuses", "pendingBonuses", "reached", "previous", "randomState"].every(function (key) {
     return JSON.stringify(left[key]) === JSON.stringify(right[key]);
   });
 };
 
 ServerStorageManager.prototype.refreshGame = function () {
-  if (!this.session || this.preparingGame || this.restartRequested || this.gameInFlight || this.gameRefreshInFlight) {
+  if (!this.session || this.preparingGame || this.restartRequested || this.gameTransitioning || this.gameInFlight || this.gameRefreshInFlight) {
     return Promise.resolve(false);
   }
   var generation = this.gameGeneration;
   var self = this;
-  var pending = this.request("GET", null, this.gamesUrl).then(function (response) {
-    if (generation === self.gameGeneration) self.receiveGame(response.data.game, response.sequence, true);
+  var pending = this.request("GET", null, this.gamesUrl).then(async function (response) {
+    if (generation === self.gameGeneration) await self.receiveGame(response.data.game, response.sequence, true);
     return true;
   }).catch(function (error) {
-    if (generation === self.gameGeneration) self.reportError(error);
+    if (generation === self.gameGeneration) {
+      if (self.gameDirty) self.failGameSave(error);
+      else self.reportError(error);
+    }
     return false;
   }).then(function (result) {
     if (self.gameRefreshInFlight === pending) self.gameRefreshInFlight = null;
@@ -502,34 +593,43 @@ ServerStorageManager.prototype.flushGame = function (keepalive) {
   this.gameTimer = null;
   this.gameTimerDue = 0;
   if (this.gameInFlight) return this.gameInFlight;
-  if (!this.session || !this.gameDirty || this.gamePaused || this.preparingGame || this.restartRequested) return Promise.resolve(false);
+  if (!this.session || !this.gameDirty || this.gamePaused || this.preparingGame || this.restartRequested || this.gameTransitioning) return Promise.resolve(false);
   if (this.gameRetryAt > Date.now()) { this.scheduleGame(this.gameRetryAt - Date.now()); return Promise.resolve(false); }
   var token = this.session.token;
   var generation = this.gameGeneration;
   var actions = this.copyActions(this.actions);
   var self = this;
   var pending = this.request("PUT", { session: token, actions: actions, revision: this.gameRevision }, this.gamesUrl, keepalive)
-    .then(function (response) {
+    .then(async function (response) {
       if (generation === self.gameGeneration) {
         self.gameRetryAttempts = 0;
         self.gameRetryAt = 0;
-        self.receiveGame(response.data.game, response.sequence, true);
+        self.gameConflictAttempts = 0;
+        await self.receiveGame(response.data.game, response.sequence, true);
       }
       return true;
     }).catch(function (error) {
       if (generation !== self.gameGeneration) return false;
       if (error.status === 409) {
-        return self.request("GET", null, self.gamesUrl).then(function (response) {
-          if (generation === self.gameGeneration) self.receiveGame(response.data.game, response.sequence, true);
+        self.gameConflictAttempts++;
+        return self.request("GET", null, self.gamesUrl).then(async function (response) {
+          if (generation === self.gameGeneration) {
+            await self.receiveGame(response.data.game, response.sequence, true);
+            if (generation === self.gameGeneration && self.gameDirty && self.gameConflictAttempts >= 2) {
+              self.gameRetryAt = Date.now() + Math.min(60000, 1000 * Math.pow(2, Math.min(self.gameConflictAttempts - 2, 6)));
+              clearTimeout(self.gameTimer);
+              self.gameTimer = null;
+            }
+          }
           return false;
         }).catch(function (refreshError) { if (generation === self.gameGeneration) self.failGameSave(refreshError); return false; });
       }
       if (error.status === 400 && self.gameAdopting) {
         if (self.activeState) self.backupGame(self.activeState);
-        return self.request("POST", { restart: false }, self.gamesUrl).then(function (response) {
+        return self.request("POST", { restart: false }, self.gamesUrl).then(async function (response) {
           if (generation === self.gameGeneration) {
             self.gameAdopting = false;
-            self.receiveGame(response.data.game, response.sequence, true);
+            await self.receiveGame(response.data.game, response.sequence, true);
           }
           return false;
         }).catch(function (ensureError) { if (generation === self.gameGeneration) self.failGameSave(ensureError); return false; });
@@ -575,6 +675,9 @@ ServerStorageManager.prototype.validSavedState = function (state) {
   if (!state.bonuses || !["undo", "swap", "remove"].every(function (type) {
     return Number.isInteger(state.bonuses[type]) && state.bonuses[type] >= 0 && state.bonuses[type] <= 2;
   })) return false;
+  if (state.pendingBonuses !== undefined && (!state.pendingBonuses || !["undo", "swap", "remove"].every(function (type) {
+    return Number.isInteger(state.pendingBonuses[type]) && state.pendingBonuses[type] >= 0 && state.pendingBonuses[type] <= 1;
+  }))) return false;
   return !state.previous || this.validBoard(state.previous);
 };
 
@@ -593,6 +696,7 @@ ServerStorageManager.prototype.validBoard = function (state) {
 
 ServerStorageManager.prototype.recordAction = function (action) {
   if (!this.session) throw new Error("A server-issued game session is required");
+  if (this.gameTransitioning) throw new Error("Game rules are being updated. Try again shortly.");
   this.actions.push(action.slice());
   this.gameDirty = true;
   this.scheduleGame(1000);

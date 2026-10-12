@@ -26,7 +26,7 @@ jobs:
       - name: JavaScript tests
         run: npm test
       - name: PHP syntax
-        run: find appinfo lib templates tests -name '*.php' -print0 | xargs -0 -r -n 1 php -l
+        run: find appinfo lib templates tests scripts -name '*.php' -print0 | xargs -0 -r -n 1 php -l
       - name: Integration helper syntax
         run: |
           bash -n scripts/test-nextcloud.sh

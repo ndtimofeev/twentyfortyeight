@@ -30,12 +30,23 @@ class ActiveGameService {
 				$this->mapper->deleteIfCurrent($uid, $row['session_token'], $row['revision']);
 				continue;
 			}
+			$actions = json_decode($row['actions'], true, 512, JSON_THROW_ON_ERROR);
+			if ($verified['session']['version'] === 1) {
+				$session = $this->sessions->upgrade($uid, $row['session_token'], $actions);
+				$upgraded = $this->sessions->verify($uid, $session['token'], $actions, true);
+				$game = $this->game($upgraded, $actions, $row['revision'] + 1);
+				if ($this->mapper->replace($uid, $row['session_token'], $row['revision'], $game, $this->time->getTime())) {
+					return $game;
+				}
+				// A restart or another upgrader won the conditional write.
+				continue;
+			}
 			$state = json_decode($row['state'], true, 512, JSON_THROW_ON_ERROR);
 			// Preserve the empty JSON object used by the browser's milestone map.
 			$state['reached'] = (object)$state['reached'];
 			return [
 				'session' => $verified['session'],
-				'actions' => json_decode($row['actions'], true, 512, JSON_THROW_ON_ERROR),
+				'actions' => $actions,
 				'revision' => $row['revision'],
 				'state' => $state,
 			];
@@ -83,6 +94,10 @@ class ActiveGameService {
 		$current = $this->get($uid);
 		if ($current === null) {
 			// Adopt signed games previously stored only in this browser during upgrade.
+			if ($verified['session']['version'] === 1) {
+				$session = $this->sessions->upgrade($uid, $token, $actions);
+				$verified = $this->sessions->verify($uid, $session['token'], $actions, true);
+			}
 			$adopted = $this->game($verified, $actions, 0);
 			if ($revision === 0 && $this->mapper->insert($uid, $adopted, $this->time->getTime())) {
 				return $adopted;

@@ -7,7 +7,7 @@ const vm = require('node:vm')
 
 const copy = value => JSON.parse(JSON.stringify(value))
 
-function createGame(seed, savedState = null, history = null) {
+function createGame(seed, savedState = null, history = null, version = 1) {
 	const stored = history || { actions: [], peakScore: 0, movesAtPeakScore: 0, bestTileEver: 0 }
 	stored.state = savedState
 	const ctx = vm.createContext({ Math, JSON })
@@ -18,7 +18,7 @@ function createGame(seed, savedState = null, history = null) {
 	}
 	ctx.Actuator = class { actuate() {} continueGame() {} }
 	ctx.Storage = class {
-		constructor() { this.session = { seed }; this.actions = stored.actions }
+		constructor() { this.session = { seed, version }; this.actions = stored.actions }
 		getBestScore() { return stored.peakScore }
 		getGameState() { return stored.state }
 		setGameState(state) { stored.state = copy(state) }
@@ -36,12 +36,12 @@ function createGame(seed, savedState = null, history = null) {
 		vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', file + '.js'), 'utf8'), ctx)
 	}
 	const game = vm.runInContext('new GameManager(4, InputManager, Actuator, Storage)', ctx)
-	return { game, stored, seed }
+	return { game, stored, seed, version }
 }
 
 function expected(env) {
 	const { game, stored } = env
-	return copy({
+	const result = copy({
 		peakScore: stored.peakScore,
 		bestTileEver: stored.bestTileEver,
 		movesAtPeakScore: stored.movesAtPeakScore,
@@ -58,12 +58,15 @@ function expected(env) {
 			rng: game.random.state,
 		},
 	})
+	if (game.rulesVersion === 2) result.state.pendingBonuses = copy(game.pendingBonuses)
+	return result
 }
 
 function fixture(name, env) {
 	return {
 		name,
 		seed: env.seed,
+		version: env.version,
 		actions: copy(env.stored.actions),
 		expected: expected(env),
 		savedState: copy({ ...env.game.serialize(), peakScore: env.stored.peakScore }),
@@ -153,8 +156,8 @@ function chooseMove(game, depth = 4) {
 	return direction
 }
 
-function play(seed, maxMoves = 2500) {
-	const env = createGame(seed)
+function play(seed, maxMoves = 2500, version = 1) {
+	const env = createGame(seed, null, null, version)
 	for (let i = 0; i < maxMoves && !env.game.won; i++) {
 		if (env.game.over) break
 		const direction = chooseMove(env.game)
@@ -224,7 +227,75 @@ function generate() {
 	assert.strictEqual(persisted.game.isGameTerminated(), false)
 	for (let i = 0; i < 12 && !persisted.game.over; i++) apply(persisted, ['move', chooseMove(persisted.game)])
 	fixtures.push(fixture('verified-after-continue-reload', persisted))
+	addVersion2Fixtures(fixtures)
 	return fixtures
+}
+
+function addVersion2Fixtures(fixtures) {
+	const legacyWin = fixtures.find(item => item.name === 'verified-win-2048')
+	const firstMoves = {}
+	const milestones = [[128, 'undo'], [256, 'swap'], [512, 'remove']]
+	const probe = createGame(legacyWin.seed)
+	legacyWin.actions.forEach((action, index) => {
+		apply(probe, action)
+		for (const [value] of milestones) if (probe.game.reached[value] && !firstMoves[value]) firstMoves[value] = index + 1
+	})
+	const has = (env, value) => env.game.grid.cells.some(column => column.some(tile => tile && tile.value === value))
+	const pickSwap = env => {
+		const cells = []
+		env.game.grid.eachCell((x, y, tile) => { if (tile) cells.push([x, y, tile.value]) })
+		for (const a of cells) for (const b of cells) {
+			if (a[2] === b[2]) continue
+			const action = ['swap', a[0], a[1], b[0], b[1]]
+			if (apply(env, action)) return action
+		}
+		throw new Error('A valid fixture swap is required')
+	}
+	for (const [value, type] of milestones) {
+		let env = createGame(legacyWin.seed, null, null, 2)
+		const prefix = legacyWin.actions.slice(0, firstMoves[value])
+		for (const action of prefix) apply(env, action)
+		assert.strictEqual(env.game.bonuses[type], 2)
+		assert.strictEqual(env.game.pendingBonuses[type], 1)
+		fixtures.push(fixture(`v2-${type}-first-full-banked`, env))
+		const beforeReload = expected(env)
+		env = createGame(env.seed, env.stored.state, env.stored, 2)
+		assert.deepStrictEqual(expected(env), beforeReload, 'Banked reward survives reload')
+		let swap
+		if (type === 'undo') apply(env, ['undo'])
+		if (type === 'swap') swap = pickSwap(env)
+		if (type === 'remove') {
+			const valueToRemove = Math.min(...env.game.grid.cells.flat().filter(Boolean).map(tile => tile.value))
+			assert.ok(apply(env, ['remove', valueToRemove]))
+		}
+		assert.strictEqual(env.game.bonuses[type], 2)
+		assert.strictEqual(env.game.pendingBonuses[type], 0)
+		fixtures.push(fixture(`v2-${type}-bank-redeemed-after-reload`, env))
+		if (type === 'undo') {
+			apply(env, prefix.at(-1))
+			assert.ok(has(env, value))
+			assert.strictEqual(env.game.bonuses.undo, 2)
+			assert.strictEqual(env.game.pendingBonuses.undo, 0)
+			fixtures.push(fixture('v2-undo-redo-no-new-reward', env))
+			assert.ok(apply(env, ['undo']))
+			assert.strictEqual(env.game.bonuses.undo, 1)
+			fixtures.push(fixture('v2-undo-second-use-costs-charge', env))
+			apply(env, prefix.at(-1))
+			assert.ok(apply(env, ['undo']))
+			assert.strictEqual(env.game.bonuses.undo, 0)
+			fixtures.push(fixture('v2-undo-third-use-exhausts-charges', env))
+		} else {
+			if (type === 'swap') assert.ok(apply(env, swap))
+			if (type === 'remove') {
+				apply(env, ['move', chooseMove(env.game)])
+				const present = Math.min(...env.game.grid.cells.flat().filter(Boolean).map(tile => tile.value))
+				assert.ok(apply(env, ['remove', present]))
+			}
+			assert.strictEqual(env.game.bonuses[type], 1)
+			assert.strictEqual(env.game.pendingBonuses[type], 0)
+			fixtures.push(fixture(`v2-${type}-second-use-costs-charge`, env))
+		}
+	}
 }
 
 module.exports = { createGame, expected, apply, chooseMove, play, generate }

@@ -906,3 +906,287 @@ test('an in-flight active snapshot leaves its newer local tail queued without re
   assert.equal(env.manager.gameDirty, false);
   assert.equal(changes.length, 0);
 });
+
+const v2Session = (token, previousToken, seed = 123) => ({ token, previousToken, seed, version: 2 });
+const v2Board = (score, tile, rng = 99) => Object.assign(state(score, tile, rng), { pendingBonuses: { undo: 0, swap: 0, remove: 0 } });
+
+test('version 2 sessions and pending bonuses survive validation and activation', async () => {
+  const board = v2Board(128, 128);
+  board.pendingBonuses.undo = 1;
+  const canonical = game(v2Session('version-two'), [['move', 3]], 2, board);
+  const env = load({ serverGame: canonical });
+  const restored = await env.manager.prepareGame(null);
+  assert.equal(env.manager.session.version, 2);
+  assert.equal(restored.pendingBonuses.undo, 1);
+  assert.equal(env.manager.validLocalGame(restored), true);
+  assert.equal(env.manager.validLocalGame(Object.assign({}, restored, { pendingBonuses: { undo: 2, swap: 0, remove: 0 } })), false);
+  assert.equal(env.manager.sameGameState(restored, Object.assign({}, restored, { pendingBonuses: { undo: 0, swap: 0, remove: 0 } })), false);
+});
+
+test('startup upgrades a compatible offline version 1 tail using the complete verified version 2 replay', async () => {
+  const old = localGame(game(session('old-v1'), [['move', 3], ['move', 0], ['move', 1]], 3, state(1300, 128, 555)));
+  const upgraded = game(v2Session('new-v2', 'old-v1'), [['move', 3]], 4, v2Board(1200, 128, 111));
+  const env = load({ serverGame: upgraded, fetch(call) {
+    if (call.init.method === 'PUT') return Promise.resolve(response({ game: game(upgraded.session, call.body.actions, 5, v2Board(1300, 128, 555)) }));
+  } });
+  // A pending version-1 record must remain independently verifiable.
+  env.shared.set(env.manager.queueKey + '.job.old-proof', JSON.stringify({ id: 'old-proof', session: 'old-v1', actions: old.actions,
+    score: 1300, bestTile: 128, attempts: 0, nextAttempt: 0, blocked: false }));
+  const restored = await env.manager.prepareGame(old);
+  assert.deepEqual(activePuts(env)[0].body, { session: 'new-v2', actions: old.actions, revision: 4 });
+  assert.equal(restored.session.version, 2);
+  assert.equal(restored.randomState, 555);
+  assert.equal(restored.revision, 5);
+  assert.deepEqual(restored.pendingBonuses, { undo: 0, swap: 0, remove: 0 });
+  assert.equal(env.manager.gameTransitioning, false);
+  assert.deepEqual(env.pending()[0].actions, old.actions);
+  assert.equal(env.pending()[0].session, 'old-v1');
+});
+
+test('equal version 1 histories load the upgraded server state without another PUT', async () => {
+  const history = [['move', 3]];
+  const board = v2Board(1200, 128);
+  board.pendingBonuses.undo = 1;
+  const env = load({ serverGame: game(v2Session('new-v2', 'old-v1'), history, 3, board) });
+  const restored = await env.manager.prepareGame(localGame(game(session('old-v1'), history, 2, state(1200, 128))));
+  assert.equal(restored.pendingBonuses.undo, 1);
+  assert.equal(restored.session.version, 2);
+  assert.equal(activePuts(env).length, 0);
+});
+
+test('background promotion freezes actions and keeps the refresh busy until the full replay arrives', async () => {
+  const promotion = deferred();
+  const store = { game: game(session('old-v1'), [['move', 3]], 1, state(1200, 128)) };
+  const env = load({ gameStore: store, fetch(call) { if (call.init.method === 'PUT') return promotion.promise; } });
+  await env.manager.prepareGame(null);
+  move(env.manager, 0, 1300, 128);
+  env.manager.setGameState(state(1300, 128, 555));
+  store.game = game(v2Session('new-v2', 'old-v1'), [['move', 3]], 2, v2Board(1200, 128));
+  const changes = [];
+  env.manager.onGameChange((board, message) => changes.push({ board, message }));
+  const refreshing = env.manager.refreshGame();
+  await settle();
+  assert.equal(env.manager.gameTransitioning, true);
+  assert.equal(env.manager.session.version, 1);
+  assert.equal(env.manager.gameRefreshInFlight, refreshing);
+  assert.throws(() => env.manager.recordAction(['move', 1]), /being updated/);
+  promotion.resolve(response({ game: game(store.game.session, [['move', 3], ['move', 0]], 3, v2Board(1300, 128, 555)) }));
+  await refreshing;
+  assert.equal(env.manager.session.version, 2);
+  assert.equal(env.manager.gameTransitioning, false);
+  assert.equal(env.manager.gameRefreshInFlight, null);
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0].message, '');
+  assert.deepEqual(changes[0].board.actions, [['move', 3], ['move', 0]]);
+});
+
+test('an old-token PUT conflict promotes the entire offline tail instead of discarding it', async () => {
+  const store = { game: game(session('old-v1'), [['move', 3]], 1, state(1200, 128)) };
+  const env = load({ gameStore: store, fetch(call) {
+    if (call.init.method === 'PUT') {
+      if (call.body.session === 'old-v1') return Promise.resolve(response({ message: 'Upgraded', game: store.game }, 409));
+      return Promise.resolve(response({ game: game(store.game.session, call.body.actions, 3, v2Board(1300, 128, 555)) }));
+    }
+  } });
+  await env.manager.prepareGame(null);
+  move(env.manager, 0, 1300, 128);
+  env.manager.setGameState(state(1300, 128, 555));
+  store.game = game(v2Session('new-v2', 'old-v1'), [['move', 3]], 2, v2Board(1200, 128));
+  await env.manager.flushGame();
+  assert.deepEqual(activePuts(env).map(call => call.body.session), ['old-v1', 'new-v2']);
+  assert.equal(activePuts(env)[1].body.actions.length, 2);
+  assert.equal(env.manager.session.version, 2);
+  assert.equal(env.manager.actions.length, 2);
+  assert.equal(env.manager.gameDirty, false);
+  assert.equal(env.pending()[0].session, 'old-v1');
+});
+
+test('promotion rebases a compatible CAS revision conflict before applying version 2', async () => {
+  const store = { game: game(v2Session('new-v2', 'old-v1'), [['move', 3]], 2, v2Board(1200, 128)) };
+  let puts = 0;
+  const env = load({ gameStore: store, fetch(call) {
+    if (call.init.method === 'PUT') {
+      if (++puts === 1) {
+        store.game = game(store.game.session, [['move', 3], ['move', 0]], 3, v2Board(1250, 128));
+        return Promise.resolve(response({ message: 'Revision changed', game: store.game }, 409));
+      }
+      return Promise.resolve(response({ game: game(store.game.session, call.body.actions, 4, v2Board(1300, 128, 555)) }));
+    }
+  } });
+  const history = [['move', 3], ['move', 0], ['move', 1]];
+  const restored = await env.manager.prepareGame(localGame(game(session('old-v1'), history, 1, state(1300, 128, 555))));
+  assert.equal(activePuts(env).length, 2);
+  assert.equal(activePuts(env)[1].body.revision, 3);
+  assert.deepEqual(restored.actions, history);
+  assert.equal(restored.revision, 4);
+});
+
+test('repeated promotion conflicts retain the local version 1 tail and release the freeze', async () => {
+  const upgraded = game(v2Session('new-v2', 'old-v1'), [['move', 3]], 2, v2Board(1200, 128));
+  const env = load({ serverGame: upgraded, fetch(call) {
+    if (call.init.method === 'PUT') return Promise.resolve(response({ message: 'Conflict', game: upgraded }, 409));
+  } });
+  const history = [['move', 3], ['move', 0]];
+  const restored = await env.manager.prepareGame(localGame(game(session('old-v1'), history, 1, state(1300, 128, 555))));
+  assert.equal(activePuts(env).length, 3);
+  assert.equal(restored.session.version, 1);
+  assert.deepEqual(restored.actions, history);
+  assert.equal(restored.randomState, 555);
+  assert.equal(env.manager.gameTransitioning, false);
+  assert.equal(env.manager.gameDirty, true);
+});
+
+test('a network failure during promotion keeps offline version 1 play recoverable', async () => {
+  let online = false;
+  const upgraded = game(v2Session('new-v2', 'old-v1'), [['move', 3]], 2, v2Board(1200, 128));
+  const env = load({ serverGame: upgraded, fetch(call) {
+    if (call.init.method === 'PUT') {
+      if (!online) return Promise.reject(new TypeError('offline'));
+      return Promise.resolve(response({ game: game(upgraded.session, call.body.actions, 3, v2Board(1300, 128, 555)) }));
+    }
+  } });
+  const history = [['move', 3], ['move', 0]];
+  const restored = await env.manager.prepareGame(localGame(game(session('old-v1'), history, 1, state(1300, 128, 555))));
+  assert.equal(restored.session.version, 1);
+  assert.equal(env.manager.gameTransitioning, false);
+  assert.deepEqual(env.manager.getGameState().actions, history);
+  online = true;
+  env.emitWindow('online');
+  await settle();
+  await env.advance(0);
+  assert.equal(env.manager.session.version, 2);
+  assert.deepEqual(plain(env.manager.actions), history);
+});
+
+test('New Game invalidates a delayed version upgrade without freezing the replacement', async () => {
+  const promotion = deferred();
+  const store = { game: game(session('old-v1'), [['move', 3]], 1, state(1200, 128)) };
+  const env = load({ gameStore: store, fetch(call) {
+    if (call.init.method === 'PUT') return promotion.promise;
+    if (call.init.method === 'POST' && call.url.endsWith('/games') && call.body.restart) {
+      return Promise.resolve(response({ game: game(v2Session('fresh-v2'), [], 0, v2Board(0, 2)) }));
+    }
+  } });
+  await env.manager.prepareGame(null);
+  move(env.manager, 0, 1300, 128);
+  env.manager.setGameState(state(1300, 128));
+  store.game = game(v2Session('upgraded-v2', 'old-v1'), [['move', 3]], 2, v2Board(1200, 128));
+  const refreshing = env.manager.refreshGame();
+  await settle();
+  assert.equal(env.manager.gameTransitioning, true);
+  env.manager.startNewGame();
+  await env.manager.prepareGame(null);
+  promotion.resolve(response({ game: game(store.game.session, [['move', 3], ['move', 0]], 3, v2Board(1300, 128)) }));
+  await refreshing;
+  assert.equal(env.manager.session.token, 'fresh-v2');
+  assert.equal(env.manager.actions.length, 0);
+  assert.equal(env.manager.gameTransitioning, false);
+});
+
+test('an unrelated version 2 token or seed cannot adopt an offline version 1 tail', async () => {
+  const env = load({ serverGame: game(v2Session('unrelated-v2', 'old-v1', 999), [['move', 3]], 2, v2Board(1200, 128)) });
+  const history = [['move', 3], ['move', 0]];
+  await env.manager.prepareGame(localGame(game(session('old-v1'), history, 1, state(1300, 128))));
+  assert.equal(activePuts(env).length, 0);
+  assert.equal(env.manager.session.token, 'unrelated-v2');
+  assert.equal(env.manager.actions.length, 1);
+  assert.equal(JSON.parse(env.shared.get(env.manager.local.gameStateKey + '.superseded')).actions.length, 2);
+});
+
+test('remote compatible advancement that spends a bonus has a meaningful message', async () => {
+  const store = { game: game(session('shared'), [['move', 3]], 1, state(1200, 128)) };
+  const env = load({ gameStore: store });
+  await env.manager.prepareGame(null);
+  const board = Object.assign(state(1200, 128), { bonuses: { undo: 1, swap: 2, remove: 2 } });
+  env.manager.setGameState(board);
+  const advanced = Object.assign(state(1200, 128), { bonuses: { undo: 0, swap: 2, remove: 2 } });
+  store.game = game(session('shared'), [['move', 3], ['undo'], ['move', 3]], 2, advanced);
+  const messages = [];
+  env.manager.onGameChange((state, message) => messages.push(message));
+  await env.manager.refreshGame();
+  assert.match(messages[0], /advanced in another browser/);
+  assert.equal(env.manager.activeState.bonuses.undo, 0);
+});
+
+test('concurrent focus and old-token conflict share one promotion and preserve moves after failure', async () => {
+  const focusRead = deferred(), promotion = deferred();
+  const store = { game: game(session('old-v1'), [['move', 3]], 1, state(1200, 128)) };
+  let reads = 0, promotions = 0;
+  const env = load({ gameStore: store, fetch(call) {
+    if (call.url.endsWith('/games') && call.init.method === 'GET' && ++reads === 2) return focusRead.promise;
+    if (call.init.method === 'PUT') {
+      if (call.body.session === 'old-v1') return Promise.resolve(response({ message: 'Upgraded', game: store.game }, 409));
+      if (++promotions === 1) return promotion.promise;
+      return Promise.resolve(response({ game: game(store.game.session, call.body.actions, 4, v2Board(1400, 128, 333)) }));
+    }
+  } });
+  await env.manager.prepareGame(null);
+  const refreshing = env.manager.refreshGame();
+  move(env.manager, 0, 1300, 128);
+  env.manager.setGameState(state(1300, 128, 222));
+  store.game = game(v2Session('new-v2', 'old-v1'), [['move', 3]], 2, v2Board(1200, 128));
+  const saving = env.manager.flushGame();
+  await settle();
+  assert.equal(promotions, 1);
+  assert.equal(env.manager.gameTransitioning, true);
+  focusRead.resolve(response({ game: plain(store.game) }));
+  await settle();
+  assert.equal(promotions, 1, 'both reconciliation paths must await the same promotion');
+  assert.throws(() => env.manager.recordAction(['move', 1]), /being updated/);
+  promotion.reject(new TypeError('offline'));
+  await Promise.all([refreshing, saving]);
+  assert.equal(env.manager.gameTransitioning, false);
+  assert.equal(env.manager.session.version, 1);
+  move(env.manager, 1, 1400, 128);
+  env.manager.setGameState(state(1400, 128, 333));
+  env.emitWindow('online');
+  await settle();
+  assert.equal(promotions, 2);
+  assert.equal(env.manager.session.version, 2);
+  assert.deepEqual(plain(env.manager.actions), [['move', 3], ['move', 0], ['move', 1]]);
+  assert.equal(env.manager.activeState.randomState, 333);
+});
+
+test('a diverging promotion CAS winner replaces the live board and retains the old proof', async () => {
+  const store = { game: game(session('old-v1'), [['move', 3]], 1, state(1200, 128)) };
+  const env = load({ gameStore: store, fetch(call) {
+    if (call.init.method === 'PUT') {
+      store.game = game(v2Session('new-v2', 'old-v1'), [['move', 3], ['move', 1]], 3, v2Board(1250, 128, 777));
+      return Promise.resolve(response({ message: 'Other moves won', game: store.game }, 409));
+    }
+  } });
+  await env.manager.prepareGame(null);
+  move(env.manager, 0, 1300, 128);
+  env.manager.setGameState(state(1300, 128, 555));
+  store.game = game(v2Session('new-v2', 'old-v1'), [['move', 3]], 2, v2Board(1200, 128));
+  const messages = [];
+  env.manager.onGameChange((board, message) => messages.push(message));
+  await env.manager.refreshGame();
+  assert.equal(activePuts(env).length, 1);
+  assert.deepEqual(plain(env.manager.actions), [['move', 3], ['move', 1]]);
+  assert.equal(env.manager.session.version, 2);
+  assert.equal(env.manager.activeState.randomState, 777);
+  assert.match(messages[0], /changed in another browser/);
+  assert.equal(env.pending()[0].session, 'old-v1');
+  assert.deepEqual(env.pending()[0].actions, [['move', 3], ['move', 0]]);
+  assert.equal(env.manager.gameTransitioning, false);
+});
+
+test('normal compatible CAS conflicts back off instead of immediately retrying forever', async () => {
+  const canonical = game(session('shared'), [], 0, state(0, 2));
+  const env = load({ serverGame: canonical, fetch(call) {
+    if (call.init.method === 'PUT') return Promise.resolve(response({ message: 'Conflict', game: canonical }, 409));
+  } });
+  await env.manager.prepareGame(null);
+  move(env.manager, 3, 8, 4);
+  env.manager.setGameState(state(8, 4));
+  await env.manager.flushGame();
+  await env.advance(0);
+  assert.equal(activePuts(env).length, 2);
+  assert.equal(env.manager.gameDirty, true);
+  await env.advance(999);
+  assert.equal(activePuts(env).length, 2);
+  await env.advance(1);
+  assert.equal(activePuts(env).length, 3);
+  assert.deepEqual(plain(env.manager.actions), [['move', 3]]);
+});

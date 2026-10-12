@@ -53,6 +53,7 @@
 }
 
 #tfe .bonus-count {
+	position: relative;
 	min-width: 1.5em;
 	padding: 0 6px;
 	box-sizing: border-box;
@@ -60,6 +61,21 @@
 	background: rgba(249, 246, 242, 0.25);
 	line-height: 1.5;
 	text-align: center;
+}
+
+/* The ready supply stays at two; a first milestone earned while full is kept. */
+#tfe .bonus-count[data-pending="1"]::after {
+	content: "+1";
+	position: absolute;
+	top: -7px;
+	right: -8px;
+	padding: 0 3px;
+	border-radius: 6px;
+	background: #f65e3b;
+	color: #fff;
+	font-size: 10px;
+	font-weight: bold;
+	line-height: 14px;
 }
 
 #tfe .bonus-hint {
