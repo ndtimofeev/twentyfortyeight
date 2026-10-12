@@ -50,10 +50,11 @@ actions. Deleting an account revokes its tokens and removes its records.
 A connection is required to start a new verified game. An existing saved game
 can continue offline. Pending submissions are kept separately from the board,
 survive restart/reload, and retry after network failures. Tile records are sent
-even if the score is below the personal record. Permanent verification errors
-remain visible and the affected submission is kept locally. Browser storage
-must remain available; clearing it discards the unfinished game and pending
-submissions. If storage is full, keep the page open until the result is saved.
+even if the score is below the personal record. Rejected submissions remain
+saved locally for diagnosis; save status messages are not shown in the game
+interface. Browser storage must remain available; clearing it discards the unfinished game and pending
+submissions. If browser storage is full, pending results can only survive while
+the page remains open until a successful submission.
 
 Verification proves that a result is achievable with the issued seed and the
 game rules. It does not prove human play or prevent automation, looking ahead
@@ -103,11 +104,12 @@ The game is [gabrielecirulli/2048](https://github.com/gabrielecirulli/2048)
   text colour follows the Nextcloud theme.
 * Polyfills for old browsers and the "official version" note are removed.
 * Corners of tiles, cells, buttons and the board are slightly rounder (6px / 10px).
-* The page shows the board, New Game, the bonus buttons and the leaderboard: the
-  title, score/best boxes, intro, "How to play" and credits paragraphs are removed
-  from the template (the copyright notice stays in `LICENSE-2048.txt`), together with
-  the CSS for them. `html_actuator.js` skips the score boxes when they are missing.
-  The best score is still tracked and sent to the server.
+* The page shows the current score above the board, New Game, the bonus buttons
+  and the leaderboard. The title, best-score box, intro, "How to play" and credits
+  paragraphs are removed (the copyright notice stays in `LICENSE-2048.txt`).
+  On mobile the square board fills the available width and the leaderboard
+  follows below it. Save status messages are kept out of the game interface;
+  the best score is still tracked and sent to the server.
 
 ## Install for development
 

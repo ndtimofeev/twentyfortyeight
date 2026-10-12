@@ -17,6 +17,7 @@ function fixture() {
 		querySelectorAll(selector) { return selector.split(', ').flatMap(part => selectors.get(part) || []) },
 		getElementsByClassName(name) { return selectors.get('.' + name) || [] },
 		createElement(tag) { return new Element(tag) },
+		getElementById(id) { return this.querySelector('#' + id) },
 	}
 	class Element {
 		constructor(tag = 'div', className = '') {
@@ -36,6 +37,7 @@ function fixture() {
 		}
 		set textContent(value) { this._text = String(value); this.children = [] }
 		get textContent() { return this._text + this.children.map(child => child.textContent).join('') }
+		get firstChild() { return this.children[0] || null }
 		setAttribute(name, value) { this.attributes[name] = String(value) }
 		getAttribute(name) { return this.attributes[name] ?? null }
 		addEventListener(type, listener) { (this.listeners[type] ||= []).push(listener) }
@@ -64,6 +66,9 @@ function fixture() {
 	document.body.appendChild(root)
 	const container = element('.game-container')
 	root.appendChild(container)
+	const score = element('.score-container', 'output')
+	score.textContent = '0'
+	root.appendChild(score)
 	const tiles = element('.tile-container')
 	container.appendChild(tiles)
 	const hint = element('.bonus-hint', 'p')
@@ -89,8 +94,8 @@ function fixture() {
 		root.appendChild(button)
 	}
 	selectors.set('.bonus-button', Object.values(buttons))
-	const ctx = vm.createContext({ document, window: { navigator: {}, getComputedStyle: element => element.style || {} } })
-	for (const file of ['keyboard_input_manager', 'bonus_ui', 'leaderboard']) {
+	const ctx = vm.createContext({ document, window: { navigator: {}, getComputedStyle: element => element.style || {}, requestAnimationFrame: callback => callback() } })
+	for (const file of ['keyboard_input_manager', 'bonus_ui', 'leaderboard', 'html_actuator']) {
 		vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', file + '.js'), 'utf8'), ctx)
 	}
 	const input = new ctx.KeyboardInputManager()
@@ -116,7 +121,7 @@ function fixture() {
 		document.dispatch('keydown', event)
 		return event
 	}
-	return { document, ctx, Element, selectors, root, controls, buttons, cells, container, hint, game, ui, actions, key }
+	return { document, ctx, Element, selectors, root, score, controls, buttons, cells, container, hint, game, ui, actions, key }
 }
 
 test('game actions use native buttons and expose live status and board cells', () => {
@@ -126,6 +131,8 @@ test('game actions use native buttons and expose live status and board cells', (
 	}
 	assert.match(template, /class="tfe-status" role="status" aria-live="polite"/)
 	assert.match(template, /role="gridcell" tabindex="-1"/)
+	assert.match(template, /<span class="score-label" id="tfe-score-label">Score<\/span>/)
+	assert.match(template, /<output class="score-container" aria-labelledby="tfe-score-label"[^>]*>0<\/output>/)
 })
 
 test('Swap selects two tiles with arrows and Enter/Space without moving the game', () => {
@@ -343,4 +350,40 @@ test('leaderboard uses API competition ranks for ties and renders names as text'
 	assert.equal(list.children.length, 0)
 	assert.equal(empty.hidden, false)
 	assert.equal(me.textContent, 'You have no score yet.')
+})
+
+
+test('current score updates and resets while gain animations are hidden from screen readers', () => {
+	const env = fixture()
+	const actuator = new env.ctx.HTMLActuator()
+	actuator.updateScore(16)
+	assert.equal(env.score._text, '16')
+	assert.equal(env.score.children.length, 1)
+	assert.equal(env.score.children[0].textContent, '+16')
+	assert.equal(env.score.children[0].getAttribute('aria-hidden'), 'true')
+	actuator.updateScore(24)
+	assert.equal(env.score._text, '24')
+	assert.equal(env.score.children.length, 1)
+	assert.equal(env.score.children[0].textContent, '+8')
+	actuator.updateScore(0)
+	assert.equal(env.score.textContent, '0')
+	assert.equal(env.score.children.length, 0)
+})
+
+test('application does not expose background saving status in the game UI', () => {
+	const env = fixture()
+	const statuses = []
+	let gamesCreated = 0
+	env.ctx.GameManager = function () {
+		gamesCreated++
+		this.initializing = false
+		this.setStatus = message => statuses.push(message)
+	}
+	env.ctx.ServerStorageManager = function () {}
+	vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', 'application.js'), 'utf8'), env.ctx)
+	assert.equal(gamesCreated, 1)
+	for (const message of ['Saved', 'Offline', 'Saving failed']) {
+		env.root.dispatch('tfe:storage-status', { detail: { message } })
+	}
+	assert.deepEqual(statuses, [])
 })

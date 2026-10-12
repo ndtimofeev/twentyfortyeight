@@ -11,6 +11,10 @@
 		<div class="tfe-wrap">
 			<div class="container" id="tfe-game">
 				<div class="above-game">
+					<div class="current-score">
+						<span class="score-label" id="tfe-score-label">Score</span>
+						<output class="score-container" aria-labelledby="tfe-score-label" aria-live="polite" aria-atomic="true">0</output>
+					</div>
 					<button type="button" class="restart-button">New Game</button>
 				</div>
 				<p class="tfe-status" role="status" aria-live="polite"></p>
