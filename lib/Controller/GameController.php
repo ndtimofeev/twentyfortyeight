@@ -37,8 +37,8 @@ class GameController extends Controller {
 
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 60, period: 60)]
-	public function save(string $session, array $actions, int $revision): DataResponse {
-		return $this->respond(fn () => $this->games->save($this->currentUid(), $session, $actions, $revision));
+	public function save(string $session, array $actions, int $revision, string $upgradeFrom = ''): DataResponse {
+		return $this->respond(fn () => $this->games->save($this->currentUid(), $session, $actions, $revision, $upgradeFrom));
 	}
 
 	private function currentUid(): string {

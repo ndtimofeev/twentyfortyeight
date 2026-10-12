@@ -63,7 +63,7 @@
 	text-align: center;
 }
 
-/* The ready supply stays at two; a first milestone earned while full is kept. */
+/* Offline version-2 games retain their old reserve until the rules upgrade. */
 #tfe .bonus-count[data-pending="1"]::after {
 	content: "+1";
 	position: absolute;

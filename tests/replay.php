@@ -80,14 +80,15 @@ namespace {
 	foreach ([0, -1, 4294967296] as $seed) {
 		rejects(fn() => new GameEngine($seed), 'Invalid seed ' . $seed);
 	}
-	foreach ([0, 3, -1] as $version) {
+	foreach ([0, 4, -1] as $version) {
 		rejects(fn() => new GameEngine(1, $version), 'Unsupported rules version ' . $version);
 	}
-	same(2, (new GameEngine(1))->getRulesVersion(), 'New games use version 2');
+	same(3, (new GameEngine(1))->getRulesVersion(), 'New games use version 3');
 	same(1, (new GameEngine(1, 1))->getRulesVersion(), 'Legacy engine retains version 1');
 	same(false, array_key_exists('pendingBonuses', (new GameEngine(1, 1))->state()), 'Version 1 diagnostics remain unchanged');
 	same(false, array_key_exists('pendingBonuses', (new GameEngine(1, 1))->savedState()), 'Version 1 saved state remains unchanged');
-	same(['undo' => 0, 'swap' => 0, 'remove' => 0], (new GameEngine(1))->savedState()['pendingBonuses'], 'Version 2 starts without banked rewards');
+	same(['undo' => 0, 'swap' => 0, 'remove' => 0], (new GameEngine(1, 2))->savedState()['pendingBonuses'], 'Version 2 starts without banked rewards');
+	same(false, array_key_exists('pendingBonuses', (new GameEngine(1))->savedState()), 'Version 3 has no reserve ledger');
 
 	$result = (new GameEngine(1))->replay([['move', 0], ['undo']]);
 	same(4, $result['peakScore'], 'Undo preserves peak score');
@@ -131,7 +132,7 @@ namespace {
 	same(12, $result['peakScore'], 'Multiple merges count their resulting values');
 	same([4, 8, 0, 0], array_column($result['state']['board'], 0), 'Each tile can merge only once');
 	foreach ([[128, 'undo'], [256, 'swap'], [512, 'remove']] as [$value, $type]) {
-		$game = onBoard([[intdiv($value, 2), intdiv($value, 2), 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]);
+		$game = onBoard([[intdiv($value, 2), intdiv($value, 2), 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], 2);
 		set($game, 'bonuses', ['undo' => 1, 'swap' => 1, 'remove' => 1]);
 		$result = $game->replay([['move', 3], ['undo'], ['move', 3]]);
 		same($type === 'undo' ? 1 : 2, $result['state']['bonuses'][$type], 'Milestone charge cannot be farmed with Undo: ' . $type);
@@ -187,6 +188,58 @@ namespace {
 	$result = $legacy->replay([['move', 3], ['undo'], ['move', 3], ['undo']]);
 	same(0, $result['state']['bonuses']['undo'], 'Version 1 still discards the first full-cap reward');
 	same(false, array_key_exists('pendingBonuses', $legacy->savedState()), 'Legacy restoration omits the new ledger');
+	foreach ([[128, 'undo'], [256, 'swap'], [512, 'remove']] as [$value, $type]) {
+		foreach ([0, 1, 2] as $charges) {
+			$game = onBoard([[intdiv($value, 2), intdiv($value, 2), 2, 4], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], 3);
+			$bonuses = ['undo' => 1, 'swap' => 1, 'remove' => 1];
+			$bonuses[$type] = $charges;
+			set($game, 'bonuses', $bonuses);
+			set($game, 'reached', [$value => true]);
+			$result = $game->replay([['move', 3]]);
+			$expectedBonuses = $bonuses;
+			$expectedBonuses[$type] = min(2, $charges + 1);
+			same($expectedBonuses, $result['state']['bonuses'], 'Version 3 repeated merge awards only its matching bonus: ' . $type . ' at ' . $charges);
+			same(false, array_key_exists('pendingBonuses', $game->savedState()), 'Version 3 never banks a full-cap reward');
+		}
+	}
+	foreach ([0, 1, 2, 3] as $direction) {
+		foreach ([0, 1, 2] as $charges) {
+			$vertical = $direction === 0 || $direction === 2;
+			$game = onBoard($vertical ? [[64, 0, 0, 0], [64, 0, 0, 0], [64, 0, 0, 0], [64, 0, 0, 0]] : [[64, 64, 64, 64], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], 3);
+			set($game, 'bonuses', ['undo' => $charges, 'swap' => 0, 'remove' => 0]);
+			set($game, 'reached', [128 => true]);
+			$result = $game->replay([['move', $direction]]);
+			same(['undo' => min(2, $charges + 2), 'swap' => 0, 'remove' => 0], $result['state']['bonuses'], 'Both 128 merges earn charges independently in direction ' . $direction);
+			same(256, $result['state']['score'], 'Four 64s score two independent 128 merges');
+			$tiles = array_merge(...$result['state']['board']);
+			same(2, count(array_filter($tiles, fn($tile) => $tile === 128)), 'Two 128 tiles are produced');
+			same(false, in_array(256, $tiles, true), 'Newly merged tiles cannot chain into 256 in the same move');
+		}
+	}
+	$game = onBoard([[64, 64, 2, 4], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], 3);
+	set($game, 'bonuses', ['undo' => 0, 'swap' => 2, 'remove' => 2]);
+	for ($i = 0; $i < 4; $i++) {
+		$result = $game->replay([['move', 3]]);
+		same(1, $result['state']['bonuses']['undo'], 'Version 3 every redone 128 earns a charge below cap');
+		$result = $game->replay([['undo']]);
+		same(0, $result['state']['bonuses']['undo'], 'Version 3 Undo spends the freshly earned charge');
+		same(true, $result['state']['reached']->{'128'}, 'The reached marker is diagnostic in version 3');
+	}
+	foreach ([1, 2] as $version) {
+		$game = onBoard([[64, 64, 2, 4], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], $version);
+		$game->replay([['move', 3]]);
+		$before = $game->savedState();
+		unset($before['pendingBonuses']);
+		$game->upgradeRules();
+		same(3, $game->getRulesVersion(), 'Rules upgrade selects version 3');
+		same(json_encode($before), json_encode($game->savedState()), 'Rules upgrade preserves ready charges, board, previous state, RNG and statistics');
+		$game->upgradeRules();
+		same(json_encode($before), json_encode($game->savedState()), 'Rules upgrade is idempotent');
+		$result = $game->replay([['undo']]);
+		same(1, $result['state']['bonuses']['undo'], 'Version 3 cutover discards any old reserve instead of redeeming it');
+		$result = $game->replay([['move', 3]]);
+		same(2, $result['state']['bonuses']['undo'], 'Version 3 awards a repeated merge after an old-rules prefix');
+	}
 	$game = onBoard([[1024, 1024, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]);
 	$result = $game->replay([['move', 3], ['continue'], ['undo']]);
 	same(false, $result['state']['won'], 'Undo restores pre-win flag');
@@ -223,7 +276,7 @@ namespace {
 	};
 	$sessions = new GameSession($config, $time);
 	$issued = $sessions->issue('alice');
-	same(2, $issued['version'], 'New sessions use protocol version 2');
+	same(3, $issued['version'], 'New sessions use protocol version 3');
 	same(true, $issued['seed'] >= 1 && $issued['seed'] <= 0xffffffff, 'Random seed fits unsigned 32 bits');
 	$verified = $sessions->verify('alice', $issued['token'], []);
 	same(json_encode((new GameEngine($issued['seed']))->replay([])), json_encode($verified), 'Valid signature replays the signed seed');
@@ -252,7 +305,7 @@ namespace {
 		return $payload . '.' . $encode(hash_hmac('sha256', "twentyfortyeight\0alice\0\0" . $payload, 'test-secret', true));
 	}
 	$time->now = 1_800_000_000;
-	foreach ([['v' => 3, 's' => 1, 'iat' => $time->now], ['v' => 1, 's' => 0, 'iat' => $time->now], ['v' => 1, 's' => '1', 'iat' => $time->now], ['v' => 1, 's' => 1, 'iat' => (string)$time->now], ['v' => 1, 's' => 1, 'iat' => $time->now, 'extra' => true]] as $payload) {
+	foreach ([['v' => 4, 's' => 1, 'iat' => $time->now], ['v' => 1, 's' => 0, 'iat' => $time->now], ['v' => 1, 's' => '1', 'iat' => $time->now], ['v' => 1, 's' => 1, 'iat' => (string)$time->now], ['v' => 1, 's' => 1, 'iat' => $time->now, 'extra' => true]] as $payload) {
 		rejects(fn() => $sessions->verify('alice', tokenFor($payload), []), 'Signed payload still validates schema');
 	}
 	$sessions->revoke('bob');
@@ -299,6 +352,13 @@ namespace {
 			unset($upgraded['state']['pendingBonuses'], $upgraded['state']['bonuses'], $upgraded['state']['canUndo']);
 			unset($legacyWithoutCharges['state']['bonuses'], $legacyWithoutCharges['state']['canUndo']);
 			same($legacyWithoutCharges, $upgraded, 'Version 2 preserves legacy replay board, RNG and historical statistics: ' . $fixture['name']);
+		}
+		if ($fixture['version'] < 3) {
+			$readyState = $savedState;
+			unset($readyState['pendingBonuses']);
+			$engine->upgradeRules();
+			$upgradedState = json_decode(json_encode($engine->savedState(), JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
+			same($readyState, $upgradedState, 'Version 3 signed cutover preserves the verified old position and available charges: ' . $fixture['name']);
 		}
 	}
 	echo 'Replay checks passed: ' . $checks . "\n";

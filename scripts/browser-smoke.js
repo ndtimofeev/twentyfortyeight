@@ -82,7 +82,7 @@ function fixtureAction(env,action) {
   return fixtureState(env);
 }
 function first128Plan(seed) {
-  const env=createGame(seed,null,null,2);
+  const env=createGame(seed,null,null,3);
   const steps=[];
   for (let move=0;move<1000 && !env.game.reached[128];move++) {
     assert.equal(env.game.over,false,'The solver must reach the first 128 before losing');
@@ -93,7 +93,7 @@ function first128Plan(seed) {
   }
   assert.equal(Boolean(env.game.reached[128]),true);
   assert.equal(env.game.bonuses.undo,2);
-  assert.equal(env.game.pendingBonuses.undo,1,'The first milestone at the full cap must keep its reward');
+  assert.equal('pendingBonuses' in fixtureState(env),false,'Modern games must not bank rewards');
   return {env,steps};
 }
 async function playFixtureAction(page,action) {
@@ -112,10 +112,10 @@ async function assertFixtureState(page,expected) {
 }
 async function milestoneRegression(browser,page,base,errors) {
   const initial=await readState(page);
-  assert.equal(initial.session.version,2);
+  assert.equal(initial.session.version,3);
   assert.equal(initial.actions.length,0);
   assert.equal(initial.bonuses.undo,2);
-  assert.equal(initial.pendingBonuses.undo,0);
+  assert.equal('pendingBonuses' in initial,false);
   const {env,steps}=first128Plan(initial.session.seed);
   for (let index=0;index<steps.length;index++) {
     await playFixtureAction(page,steps[index].action);
@@ -125,10 +125,10 @@ async function milestoneRegression(browser,page,base,errors) {
   }
   const earned=await assertFixtureState(page,fixtureState(env));
   assert.equal(earned.bonuses.undo,2);
-  assert.equal(earned.pendingBonuses.undo,1);
+  assert.equal('pendingBonuses' in earned,false);
   const undoCounter=page.locator('[data-bonus=undo] .bonus-count');
-  assert.equal(await undoCounter.getAttribute('data-pending'),'1');
-  assert.equal(await undoCounter.evaluate(el => getComputedStyle(el,'::after').content),'"+1"');
+  assert.notEqual(await undoCounter.getAttribute('data-pending'),'1');
+  assert.equal(await undoCounter.evaluate(el => getComputedStyle(el,'::after').content),'none');
   if (process.env.TEST_UI_SCREENSHOT_DIR) {
     const viewport=page.viewportSize();
     await page.setViewportSize({width:390,height:640});
@@ -140,7 +140,7 @@ async function milestoneRegression(browser,page,base,errors) {
   await waitReady(page);
   assert.deepEqual(boardState(await readState(page)),boardState(fixtureState(env)));
 
-  // The waiting reward is part of the shared game, including on a new profile.
+  // A full ready counter has no stored reward, including on another profile.
   const rewardContext=await browser.newContext();
   const rewardPage=await login(rewardContext,base,errors);
   const remoteEarned=await readState(rewardPage);
@@ -151,20 +151,25 @@ async function milestoneRegression(browser,page,base,errors) {
   await playFixtureAction(page,['undo']);
   let expected=fixtureAction(env,['undo']);
   let actual=await assertFixtureState(page,expected);
-  assert.equal(actual.bonuses.undo,2,'Undo must redeem the waiting milestone reward immediately');
-  assert.equal(actual.pendingBonuses.undo,0);
+  assert.equal(actual.bonuses.undo,1,'Undo must spend one of the two ready charges');
+  assert.equal('pendingBonuses' in actual,false);
   const redo=steps.at(-1).action;
   await playFixtureAction(page,redo);
   expected=fixtureAction(env,redo);
   actual=await assertFixtureState(page,expected);
   assert.equal(Boolean(actual.reached[128]),true);
   assert.equal(actual.bonuses.undo,2);
-  assert.equal(actual.pendingBonuses.undo,0,'Recreating the same milestone must not grant another reward');
-  await playFixtureAction(page,['undo']);
-  expected=fixtureAction(env,['undo']);
-  actual=await assertFixtureState(page,expected);
-  assert.equal(actual.bonuses.undo,1,'The next Undo spends a charge after the single reward is used');
-  assert.equal(actual.pendingBonuses.undo,0);
+  assert.equal('pendingBonuses' in actual,false);
+  for (let repeat=0;repeat<2;repeat++) {
+    await playFixtureAction(page,['undo']);
+    expected=fixtureAction(env,['undo']);
+    actual=await assertFixtureState(page,expected);
+    assert.equal(actual.bonuses.undo,1);
+    await playFixtureAction(page,redo);
+    expected=fixtureAction(env,redo);
+    actual=await assertFixtureState(page,expected);
+    assert.equal(actual.bonuses.undo,2,'Every new 128 merge must replenish the spent charge');
+  }
   await waitSaved(page,actual);
   await page.reload();
   await waitReady(page);
@@ -176,18 +181,33 @@ async function milestoneRegression(browser,page,base,errors) {
   assert.deepEqual(remoteSpent.actions,actual.actions);
   await assertRendered(rewardPage,expected);
   await rewardContext.close();
-  console.log('Browser: full-cap first-128 reward survives save/reload and another device; Undo redeems it once.');
+  console.log('Browser: full-cap 128 stores no reward; each Undo/128 redo replenishes the ready counter, including after save/reload.');
 }
-async function legacyUpgradeRegression(browser,base,errors,file) {
-  const fixture=JSON.parse(fs.readFileSync(file,'utf8'));
-  assert.equal(fixture.localState.session.version,1);
+async function legacyFixtureRegression(browser,base,errors,fixture) {
+  const username=fixture.username || 'smoke-legacy';
+  const oldVersion=fixture.localState.session.version;
+  const ancestor=username==='smoke-legacy-ancestor';
+  assert([1,2].includes(oldVersion));
   assert.equal(fixture.localState.bonuses.undo,0);
-  assert.equal(fixture.expectedState.bonuses.undo,1);
+  assert.equal(fixture.expectedState.bonuses.undo,ancestor ? 1 : 0);
+  assert.equal('pendingBonuses' in fixture.expectedState,false);
   const context=await browser.newContext();
-  await context.addInitScript(({localState}) => {
-    document.addEventListener('DOMContentLoaded',() => {
+  const promotionParents=[];
+  context.on('request',request => {
+    if (request.method()==='PUT' && request.url().includes('/api/games')) {
+      const body=request.postDataJSON();
+      if (body && body.upgradeFrom) promotionParents.push(body.upgradeFrom);
+    }
+  });
+  await context.addInitScript(({localState,username}) => {
+    let installed=false;
+    function installFixtureAndWrappers() {
+      if (installed) return;
       const root=document.querySelector('#tfe');
-      if (!root || root.dataset.user!=='smoke-legacy') return;
+      if (!root || root.dataset.user!==username || typeof window.GameManager!=='function' ||
+          typeof window.ServerStorageManager!=='function' ||
+          typeof window.ServerStorageManager.prototype.prepareGame!=='function') return;
+      installed=true;
       const identity=encodeURIComponent(root.dataset.scoresUrl)+'.'+encodeURIComponent(root.dataset.user);
       const key='twentyfortyeight.gameState.'+identity;
       const marker=key+'.legacy-test-injected';
@@ -210,20 +230,34 @@ async function legacyUpgradeRegression(browser,base,errors,file) {
           actions:previousState && previousState.actions && previousState.actions.length};
         return prepare.apply(this,arguments);
       };
-    },{once:true});
-  },{localState:fixture.localState});
-  const page=await login(context,base,errors,'smoke-legacy');
+    }
+    const requestFrame=window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame=callback => requestFrame(time => {
+      // Preserve frame timing, but install the old state before application's
+      // callback constructs GameManager. DOMContentLoaded can occur later.
+      installFixtureAndWrappers();
+      callback.call(window,time);
+    });
+    document.addEventListener('DOMContentLoaded',installFixtureAndWrappers,{once:true});
+  },{localState:fixture.localState,username});
+  const page=await login(context,base,errors,username);
   assert.deepEqual(await page.evaluate(() => window.__tfeTestPrepared),{
-    version:1,actions:fixture.localState.actions.length,
-  },'Startup must read the longer offline version-1 history');
-  assert.equal(await page.evaluate(() => window.__tfeTestGame.rulesVersion),2);
+    version:oldVersion,actions:fixture.localState.actions.length,
+  },'Startup must read the complete offline history under its original rules');
+  assert.equal(await page.evaluate(() => window.__tfeTestGame.rulesVersion),3);
   const promoted=await readState(page);
-  assert.equal(promoted.session.version,2);
-  assert(promoted.session.token!==fixture.localState.session.token,'Migration must issue a version-2 session');
+  assert.equal(promoted.session.version,3);
+  assert(promoted.session.token!==fixture.localState.session.token,'Migration must issue a version-3 session');
   assert.equal(promoted.session.seed,fixture.localState.session.seed);
   assert.deepEqual(promoted.actions,fixture.localState.actions,'Every offline action must survive migration');
   assert.deepEqual(boardState(promoted),boardState(fixture.expectedState));
-  assert.equal(promoted.bonuses.undo,1);
+  assert.equal(promoted.bonuses.undo,fixture.expectedState.bonuses.undo,'Migration must preserve the canonical parent rules counter');
+  if (ancestor) {
+    assert(promoted.session.ancestorToken===fixture.localState.session.token,'The version-1 ancestor must remain linked');
+    assert(promoted.session.previousToken!==fixture.localState.session.token,'The direct parent is the canonical version-2 session');
+    assert(promotionParents.length>0);
+    assert(promotionParents.every(token => token===promoted.session.previousToken),'Offline promotion must use the direct version-2 parent');
+  }
   await assertRendered(page,fixture.expectedState);
   const saved=await waitSaved(page,promoted);
   assert(saved.revision>fixture.localState.revision);
@@ -232,20 +266,54 @@ async function legacyUpgradeRegression(browser,base,errors,file) {
   await page.reload();
   await waitReady(page);
   const reloaded=await readState(page);
-  assert.equal(reloaded.session.version,2);
+  assert.equal(reloaded.session.version,3);
   assert.deepEqual(reloaded.actions,fixture.localState.actions,'The init fixture must not replace the upgraded state on reload');
   assert.deepEqual(boardState(reloaded),boardState(fixture.expectedState));
   await assertRendered(page,fixture.expectedState);
   const remoteContext=await browser.newContext();
-  const remotePage=await login(remoteContext,base,errors,'smoke-legacy');
+  const remotePage=await login(remoteContext,base,errors,username);
   const remote=await readState(remotePage);
-  assert.equal(remote.session.version,2);
+  assert.equal(remote.session.version,3);
   assert.deepEqual(remote.actions,fixture.localState.actions);
   assert.deepEqual(boardState(remote),boardState(fixture.expectedState));
   await assertRendered(remotePage,fixture.expectedState);
+
+  // Future moves use rule 3 after the old bank-dependent history was preserved.
+  const history={actions:copy(promoted.actions),peakScore:fixture.expectedState.peakScore,
+    bestTileEver:fixture.expectedState.maxTile,movesAtPeakScore:0};
+  const env=createGame(promoted.session.seed,copy(fixture.expectedState),history,3);
+  const readyBeforeNewMerge=env.game.bonuses.undo;
+  let merge;
+  for (let move=0;move<1000 && env.game.bonuses.undo===readyBeforeNewMerge;move++) {
+    assert.equal(env.game.over,false);
+    const direction=chooseMove(env.game);
+    assert.notEqual(direction,null);
+    merge=['move',direction];
+    await playFixtureAction(page,merge);
+    await assertFixtureState(page,fixtureAction(env,merge));
+  }
+  assert.equal(env.game.bonuses.undo,readyBeforeNewMerge+1,'A new 128 must award a charge even when the old reached map records it');
+  for (let repeat=0;repeat<2;repeat++) {
+    await playFixtureAction(page,['undo']);
+    let expected=fixtureAction(env,['undo']);
+    assert.equal((await assertFixtureState(page,expected)).bonuses.undo,readyBeforeNewMerge);
+    await playFixtureAction(page,merge);
+    expected=fixtureAction(env,merge);
+    assert.equal((await assertFixtureState(page,expected)).bonuses.undo,readyBeforeNewMerge+1,'Each repeated 128 merge must award another ready charge');
+  }
+  const final=await readState(page);
+  await waitSaved(page,final);
+  await remotePage.reload();
+  await waitReady(remotePage);
+  assert.deepEqual(boardState(await readState(remotePage)),boardState(fixtureState(env)));
+  await assertRendered(remotePage,fixtureState(env));
   await remoteContext.close();
   await context.close();
-  console.log('Browser: version-1 offline tail upgrades to version 2 with its restored reward; server, reload and another device agree.');
+  console.log('Browser: version-'+oldVersion+' offline tail preserves its ready counter at the rule-3 cutover; future 128 merges replenish on every repeat.');
+}
+async function legacyUpgradeRegression(browser,base,errors,file) {
+  const data=JSON.parse(fs.readFileSync(file,'utf8'));
+  for (const fixture of data.fixtures || [data]) await legacyFixtureRegression(browser,base,errors,fixture);
 }
 (async () => {
   const browser = await chromium.launch({executablePath:process.env.TEST_CHROMIUM_EXECUTABLE || undefined,headless:true,args:['--no-sandbox']});

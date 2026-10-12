@@ -172,8 +172,8 @@ test('charges never exceed two', () => {
 	assert.strictEqual(env.game.bonuses.undo, 2)
 })
 
-test('the charge comes only once per game for each tile', () => {
-	const env = load()
+test('v1 awards a charge only once per game for each tile', () => {
+	const env = load(null, { seed: 42, version: 1 })
 	const { game } = env
 	game.bonuses.undo = 0
 	setBoard(env, withRow(0, [64, 64, 0, 0]))
@@ -186,8 +186,8 @@ test('the charge comes only once per game for each tile', () => {
 	assert.strictEqual(game.bonuses.undo, 0, 'second 128 earns nothing')
 })
 
-test('undo and redo of a merge does not farm charges', () => {
-	const env = load()
+test('v1 undo and redo of a merge does not farm charges', () => {
+	const env = load(null, { seed: 42, version: 1 })
 	const { game } = env
 	game.bonuses.undo = 1
 	setBoard(env, withRow(0, [64, 64, 0, 0]))
@@ -202,10 +202,10 @@ test('undo and redo of a merge does not farm charges', () => {
 	assert.strictEqual(game.undo(), false)
 })
 
-test('new local games use v2 while sessions without an explicit version retain v1 rules', () => {
+test('new local games use v3 while versioned sessions retain their original rules', () => {
 	const local = load().game
-	assert.strictEqual(local.rulesVersion, 2)
-	assert.deepStrictEqual(copy(local.serialize().pendingBonuses), { undo: 0, swap: 0, remove: 0 })
+	assert.strictEqual(local.rulesVersion, 3)
+	assert.strictEqual(Object.hasOwn(local.serialize(), 'pendingBonuses'), false)
 	const legacy = load(null, { seed: 42 }).game
 	assert.strictEqual(legacy.rulesVersion, 1)
 	assert.strictEqual(Object.hasOwn(legacy.serialize(), 'pendingBonuses'), false)
@@ -213,7 +213,10 @@ test('new local games use v2 while sessions without an explicit version retain v
 	legacy.initializeState(null)
 	assert.strictEqual(legacy.rulesVersion, 1)
 	assert.strictEqual(Object.hasOwn(legacy.serialize(), 'pendingBonuses'), false)
-	assert.strictEqual(load(null, { seed: 42, version: 2 }).game.rulesVersion, 2)
+	const banked = load(null, { seed: 42, version: 2 }).game
+	assert.strictEqual(banked.rulesVersion, 2)
+	assert.deepStrictEqual(copy(banked.serialize().pendingBonuses), { undo: 0, swap: 0, remove: 0 })
+	assert.strictEqual(load(null, { seed: 42, version: 3 }).game.rulesVersion, 3)
 })
 
 test('v2 banks each first milestone at the full cap and redeems it on one successful use', () => {
@@ -351,6 +354,118 @@ test('v2 rejected bonus actions and a no-op move do not consume banked awards', 
 	assert.strictEqual(env.game.removeTilesOfValue(8192), false)
 	assert.deepStrictEqual(copy(env.game.serialize()), before)
 	assert.deepStrictEqual(env.stored.actions, actions)
+})
+
+test('v3 awards every matching threshold merge even after it was reached, up to the two-charge cap', () => {
+	for (const [value, type] of MILESTONES) for (const charges of [0, 1, 2]) {
+		const env = load(null, { seed: 42, version: 3 })
+		env.game.bonuses = { undo: 0, swap: 0, remove: 0 }
+		env.game.bonuses[type] = charges
+		env.game.reached[value] = true
+		for (let occurrence = 1; occurrence <= 3; occurrence++) {
+			setBoard(env, withRow(0, [value / 2, value / 2, 0, 0]))
+			env.game.move(LEFT)
+			assert.strictEqual(env.game.bonuses[type], Math.min(2, charges + occurrence), type + ': repeated merge ' + occurrence)
+			for (const other of ['undo', 'swap', 'remove'].filter(candidate => candidate !== type)) {
+				assert.strictEqual(env.game.bonuses[other], 0, value + ' only rewards ' + type)
+			}
+			assert.strictEqual(Object.hasOwn(env.stored.state, 'pendingBonuses'), false)
+		}
+	}
+})
+
+test('v3 merging four 64 tiles awards twice in every direction without chaining into 256', () => {
+	for (const direction of [0, 1, 2, 3]) for (const charges of [0, 1, 2]) {
+		const env = load(null, { seed: 42, version: 3 })
+		const rows = EMPTY.map(row => row.slice())
+		if (direction === 0 || direction === 2) for (let y = 0; y < 4; y++) rows[y][0] = 64
+		else rows[0] = [64, 64, 64, 64]
+		setBoard(env, rows)
+		env.game.bonuses = { undo: charges, swap: 0, remove: 0 }
+		env.game.move(direction)
+		const tiles = env.game.grid.cells.flat().filter(Boolean)
+		assert.strictEqual(tiles.filter(tile => tile.value === 128).length, 2)
+		assert.strictEqual(tiles.filter(tile => tile.value === 256).length, 0)
+		assert.deepStrictEqual(copy(env.game.bonuses), { undo: 2, swap: 0, remove: 0 })
+		assert.strictEqual(env.game.score, 256)
+		assert.strictEqual(env.game.moves, 1)
+	}
+})
+
+test('v3 drops an award at the full cap and a later successful use spends a charge normally', () => {
+	for (const [value, type] of MILESTONES) {
+		const env = load(null, { seed: 42, version: 3 })
+		setBoard(env, withRow(0, [value / 2, value / 2, 0, 0]))
+		env.game.move(LEFT)
+		assert.strictEqual(env.game.bonuses[type], 2)
+		assert.strictEqual(Object.hasOwn(env.game.serialize(), 'pendingBonuses'), false)
+		assert.strictEqual(spendBonus(env.game, type), true)
+		assert.strictEqual(env.game.bonuses[type], 1, type + ': no award is reserved at the cap')
+		setBoard(env, withRow(0, [value / 2, value / 2, 0, 0]))
+		env.game.move(LEFT)
+		assert.strictEqual(env.game.bonuses[type], 2, type + ': the next real merge replenishes the spent charge')
+	}
+})
+
+test('v3 Undo and redo each award again below the cap, including after reload', () => {
+	for (const charges of [0, 1, 2]) {
+		let env = load(null, { seed: 42, version: 3 })
+		setBoard(env, withRow(0, [64, 64, 0, 0]))
+		env.game.bonuses.undo = charges
+		env.game.move(LEFT)
+		const awarded = Math.min(2, charges + 1)
+		assert.strictEqual(env.game.bonuses.undo, awarded)
+		for (let cycle = 0; cycle < 3; cycle++) {
+			assert.strictEqual(env.game.undo(), true)
+			assert.strictEqual(env.game.bonuses.undo, awarded - 1)
+			assert.strictEqual(env.game.reached[128], true)
+			env = load(env.stored.state, { seed: 42, version: 3, actions: copy(env.stored.actions) })
+			env.game.move(LEFT)
+			assert.strictEqual(env.game.bonuses.undo, awarded, 'each redone 128 merge earns a charge again')
+			assert.strictEqual(Object.hasOwn(env.stored.state, 'pendingBonuses'), false)
+		}
+		assert.strictEqual(env.stored.actions.length, 7)
+	}
+})
+
+test('v3 redo of 256 and 512 earns the corresponding bonus while Undo retains earlier awards', () => {
+	for (const [value, type] of MILESTONES.filter(([, type]) => type !== 'undo')) {
+		const env = load(null, { seed: 42, version: 3 })
+		setBoard(env, withRow(0, [value / 2, value / 2, 0, 0]))
+		env.game.bonuses[type] = 0
+		env.game.move(LEFT)
+		assert.strictEqual(env.game.bonuses[type], 1)
+		assert.strictEqual(env.game.undo(), true)
+		assert.strictEqual(env.game.bonuses[type], 1, 'Undo preserves the earned ' + type + ' charge')
+		env.game.move(LEFT)
+		assert.strictEqual(env.game.bonuses[type], 2, 'the redone merge earns another ' + type + ' charge')
+		assert.strictEqual(env.game.bonuses.undo, 1)
+	}
+})
+
+test('v3 reload and remote restoration keep repeatable rewards and omit obsolete pending banks', () => {
+	for (const [value, type] of MILESTONES) {
+		const source = load(null, { seed: 42, version: 3 })
+		setBoard(source, withRow(0, [value / 2, value / 2, 0, 0]))
+		source.game.bonuses[type] = 0
+		source.game.move(LEFT)
+		const saved = copy(source.stored.state)
+		assert.strictEqual(Object.hasOwn(saved, 'pendingBonuses'), false)
+		const restored = copy(saved)
+		restored.pendingBonuses = { undo: 1, swap: 1, remove: 1 }
+		const resumed = load(restored, { seed: 42, version: 3, actions: copy(source.stored.actions) })
+		const remote = load(null, { seed: 42, version: 3, sharedGame: true })
+		remote.stored.remoteChange(copy(saved))
+		for (const env of [resumed, remote]) {
+			assert.strictEqual(env.game.rulesVersion, 3)
+			assert.strictEqual(env.game.bonuses[type], 1)
+			assert.strictEqual(env.game.reached[value], true)
+			assert.strictEqual(Object.hasOwn(env.game.serialize(), 'pendingBonuses'), false)
+			setBoard(env, withRow(0, [value / 2, value / 2, 0, 0]))
+			env.game.move(LEFT)
+			assert.strictEqual(env.game.bonuses[type], 2)
+		}
+	}
 })
 
 test('restart gives fresh charges and forgets reached tiles', () => {
@@ -891,6 +1006,41 @@ test('v2 banked awards survive genuine seeded histories, reload, successful use 
 			assert.strictEqual(replayed.stored.actions.length, count + 1)
 		}
 		assert.deepStrictEqual(copy(replayed.game.serialize()), copy(env.game.serialize()), type + ': actual replay restores all state')
+		assert.deepStrictEqual(replayed.stored.actions, env.stored.actions)
+	}
+})
+
+test('v3 genuine seeded histories replenish spent charges on later threshold merges and replay after reload', () => {
+	const { createGame, apply, chooseMove } = require('./generate_replay_fixtures')
+	for (const [value, type] of MILESTONES) {
+		let env = createGame(42, null, null, 3)
+		for (let i = 0; i < 2500 && !env.game.reached[value] && !env.game.isGameTerminated(); i++) {
+			const direction = chooseMove(env.game)
+			assert.notStrictEqual(direction, null, 'the seeded history must reach ' + value)
+			const count = env.stored.actions.length
+			apply(env, ['move', direction])
+			assert.strictEqual(env.stored.actions.length, count + 1)
+		}
+		assert.strictEqual(env.game.reached[value], true)
+		assert.strictEqual(env.game.bonuses[type], 2)
+		const saved = copy(env.stored.state)
+		env = createGame(42, saved, copy(env.stored), 3)
+		assert.strictEqual(spendBonus(env.game, type), true)
+		assert.strictEqual(env.game.bonuses[type], 1, type + ': spending after the first full-cap merge costs a charge')
+		for (let i = 0; i < 2500 && env.game.bonuses[type] < 2 && !env.game.isGameTerminated(); i++) {
+			const direction = chooseMove(env.game)
+			assert.notStrictEqual(direction, null, 'the history must reach another ' + value)
+			apply(env, ['move', direction])
+		}
+		assert.strictEqual(env.game.bonuses[type], 2, type + ': a genuine later matching merge replenishes the charge')
+		assert.strictEqual(Object.hasOwn(env.game.serialize(), 'pendingBonuses'), false)
+		const replayed = createGame(42, null, null, 3)
+		for (const action of env.stored.actions) {
+			const count = replayed.stored.actions.length
+			apply(replayed, action)
+			assert.strictEqual(replayed.stored.actions.length, count + 1)
+		}
+		assert.deepStrictEqual(copy(replayed.game.serialize()), copy(env.game.serialize()), type + ': complete v3 replay state')
 		assert.deepStrictEqual(replayed.stored.actions, env.stored.actions)
 	}
 })

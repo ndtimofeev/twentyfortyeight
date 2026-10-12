@@ -1,6 +1,6 @@
 // Nextcloud adaptation: bonus actions. Each one starts with BONUS_START charges
-// (never more than BONUS_MAX) and gets one more the first time the matching
-// tile is made in a game.
+// (never more than BONUS_MAX). Version 3 grants one charge for every matching
+// merge with room below the cap; earlier versions remain replay-compatible.
 var BONUS_START      = 2;
 var BONUS_MAX        = 2;
 var BONUS_MILESTONES = { 128: "undo", 256: "swap", 512: "remove" };
@@ -95,7 +95,7 @@ GameManager.prototype.setup = function () {
 
 GameManager.prototype.initializeState = function (previousState) {
   var session = this.storageManager.session;
-  this.rulesVersion = session ? (session.version || 1) : 2;
+  this.rulesVersion = session ? (session.version || 1) : 3;
   if (this.rulesVersion === 2) {
     this.pendingBonuses = previousState && previousState.pendingBonuses || this.freshPendingBonuses();
   } else {
@@ -430,13 +430,12 @@ GameManager.prototype.snapshot = function () {
   };
 };
 
-// A charge is earned only the first time a tile is made in a game. Neither the
-// charges, banked rewards nor this record are rolled back by undo, otherwise
-// undoing and redoing the merge would produce free charges.
+// Version 3 awards every matching merge, including one repeated after Undo.
+// Versions 1 and 2 preserve their first-milestone claims and banked rewards.
 GameManager.prototype.awardBonus = function (value) {
   var type = BONUS_MILESTONES[value];
 
-  if (!type || this.reached[value]) return;
+  if (!type || (this.rulesVersion !== 3 && this.reached[value])) return;
 
   this.reached[value] = true;
   if (this.bonuses[type] < BONUS_MAX) this.bonuses[type]++;

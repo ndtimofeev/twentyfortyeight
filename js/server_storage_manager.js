@@ -316,12 +316,16 @@ ServerStorageManager.prototype.validLocalGame = function (state) {
   var session = state && state.session;
   return this.validSavedState(state) && session && typeof session.token === "string" && session.token &&
     Number.isInteger(session.seed) && session.seed > 0 && session.seed <= 0xffffffff &&
-    (session.version === undefined || session.version === 1 || session.version === 2) && Array.isArray(state.actions) &&
-    state.actions.length <= 50000 && state.actions.every(this.validAction);
+    (session.version === undefined || session.version === 1 || session.version === 2 || session.version === 3) && Array.isArray(state.actions) &&
+    state.actions.length <= 50000 && state.actions.every(this.validAction) &&
+    (session.version !== 3 || (state.pendingBonuses === undefined &&
+      (session.ancestorToken === undefined || (typeof session.ancestorToken === "string" && session.ancestorToken)) &&
+      (session.previousToken === undefined || (typeof session.previousToken === "string" && session.previousToken &&
+        Number.isInteger(session.cutover) && session.cutover >= 0 && session.cutover <= state.actions.length))));
 };
 
 ServerStorageManager.prototype.serverState = function (game) {
-  if (!game || !game.session || (game.session.version !== 1 && game.session.version !== 2) ||
+  if (!game || !game.session || (game.session.version !== 1 && game.session.version !== 2 && game.session.version !== 3) ||
       !Number.isInteger(game.revision) || game.revision < 0) throw new Error("Invalid active game response");
   var state = Object.assign({}, game.state, {
     session: game.session, actions: this.copyActions(game.actions || []), revision: game.revision
@@ -335,12 +339,20 @@ ServerStorageManager.prototype.onGameChange = function (callback) {
 };
 
 ServerStorageManager.prototype.isUpgrade = function (oldSession, newSession) {
-  return !!oldSession && !!newSession && (oldSession.version === undefined || oldSession.version === 1) &&
-    newSession.version === 2 && newSession.previousToken === oldSession.token && newSession.seed === oldSession.seed;
+  if (!oldSession || !newSession || newSession.seed !== oldSession.seed) return false;
+  var version = oldSession.version === undefined ? 1 : oldSession.version;
+  var directParent = newSession.previousToken === oldSession.token;
+  return (newSession.version === 2 && version === 1 && directParent) ||
+    (newSession.version === 3 && ((directParent && (version === 1 || version === 2)) ||
+      (version === 1 && newSession.ancestorToken === oldSession.token)));
 };
 
-// Replay an offline version-1 tail under the server's signed version-2 session
-// before changing live rules or counters. No board supplied by the client is used.
+ServerStorageManager.prototype.canExtendUpgrade = function (game) {
+  return game.session.version !== 3 || game.actions.length === game.session.cutover;
+};
+
+// Preserve the offline history's original rules before switching versions. A
+// v3 promotion extends its signed cutover; no client board or counters are sent.
 ServerStorageManager.prototype.promoteGame = function (initial, local, generation) {
   if (this.gamePromotion && this.gamePromotion.generation === generation) return this.gamePromotion.promise;
   var self = this;
@@ -366,7 +378,9 @@ ServerStorageManager.prototype.replayUpgrade = async function (initial, local, g
     for (var attempt = 0; attempt < 3; attempt++) {
       if (generation !== this.gameGeneration) return null;
       try {
-        var saved = await this.request("PUT", { session: target.session.token, actions: actions, revision: target.revision }, this.gamesUrl);
+        var body = { session: target.session.token, actions: actions, revision: target.revision };
+        if (target.session.version === 3) body.upgradeFrom = target.session.previousToken;
+        var saved = await this.request("PUT", body, this.gamesUrl);
         this.serverState(saved.data.game);
         return saved;
       } catch (error) {
@@ -381,7 +395,7 @@ ServerStorageManager.prototype.replayUpgrade = async function (initial, local, g
         }
         this.serverState(current);
         var linked = current.session.token === target.session.token || this.isUpgrade(oldSession, current.session);
-        if (!linked || !this.isPrefix(current.actions, actions) || current.actions.length === actions.length) return latest;
+        if (!linked || !this.canExtendUpgrade(current) || !this.isPrefix(current.actions, actions) || current.actions.length === actions.length) return latest;
         target = current;
       }
     }
@@ -447,7 +461,7 @@ ServerStorageManager.prototype.prepareGame = function (previousState) {
     // The preceding branch already restored a local game for adoption.
     if (response && response.session) return response;
     var game = response && response.data.game;
-    if (local && self.isUpgrade(local.session, game && game.session) && self.isPrefix(game.actions, local.actions) &&
+    if (local && self.isUpgrade(local.session, game && game.session) && self.canExtendUpgrade(game) && self.isPrefix(game.actions, local.actions) &&
         local.actions.length > game.actions.length) {
       response = await self.promoteGame(game, local, generation);
       if (generation !== self.gameGeneration) return null;
@@ -521,7 +535,7 @@ ServerStorageManager.prototype.receiveGame = async function (game, sequence, not
   }
   var state = this.serverState(game);
   var generation = this.gameGeneration;
-  if (this.isUpgrade(this.session, game.session) && this.isPrefix(game.actions, this.actions) && this.actions.length > game.actions.length) {
+  if (this.isUpgrade(this.session, game.session) && this.canExtendUpgrade(game) && this.isPrefix(game.actions, this.actions) && this.actions.length > game.actions.length) {
     var local = Object.assign({}, this.activeState, { session: this.session, actions: this.copyActions(this.actions) });
     var promoted = await this.promoteGame(game, local, generation);
     if (generation !== this.gameGeneration) return;

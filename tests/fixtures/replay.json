@@ -9352,5 +9352,3236 @@
       },
       "peakScore": 4140
     }
+  },
+  {
+    "name": "v3-undo-first-full-drops-reward",
+    "seed": 42,
+    "version": 3,
+    "actions": [
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",0],
+      ["move",0],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",0],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3]
+    ],
+    "expected": {
+      "peakScore": 828,
+      "bestTileEver": 128,
+      "movesAtPeakScore": 76,
+      "state": {
+        "board": [
+          [2,4,4,8],
+          [0,0,16,128],
+          [0,0,0,0],
+          [0,0,0,0]
+        ],
+        "score": 828,
+        "moves": 76,
+        "won": false,
+        "over": false,
+        "keepPlaying": false,
+        "bonuses": {
+          "undo": 2,
+          "swap": 2,
+          "remove": 2
+        },
+        "reached": {
+          "128": true
+        },
+        "canUndo": true,
+        "rng": 78731182
+      }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            {
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 0,
+                "y": 1
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 0,
+                "y": 2
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 0,
+                "y": 3
+              },
+              "value": 8
+            }
+          ],
+          [
+            null,
+            null,
+            {
+              "position": {
+                "x": 1,
+                "y": 2
+              },
+              "value": 16
+            },
+            {
+              "position": {
+                "x": 1,
+                "y": 3
+              },
+              "value": 128
+            }
+          ],
+          [null,null,null,null],
+          [null,null,null,null]
+        ]
+      },
+      "score": 828,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 76,
+      "maxTile": 128,
+      "bonuses": {
+        "undo": 2,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {
+        "128": true
+      },
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              null,
+              {
+                "position": {
+                  "x": 0,
+                  "y": 1
+                },
+                "value": 2
+              },
+              {
+                "position": {
+                  "x": 0,
+                  "y": 2
+                },
+                "value": 4
+              },
+              {
+                "position": {
+                  "x": 0,
+                  "y": 3
+                },
+                "value": 8
+              }
+            ],
+            [
+              null,
+              null,
+              {
+                "position": {
+                  "x": 1,
+                  "y": 2
+                },
+                "value": 16
+              },
+              {
+                "position": {
+                  "x": 1,
+                  "y": 3
+                },
+                "value": 64
+              }
+            ],
+            [
+              null,
+              null,
+              null,
+              {
+                "position": {
+                  "x": 2,
+                  "y": 3
+                },
+                "value": 64
+              }
+            ],
+            [
+              null,
+              {
+                "position": {
+                  "x": 3,
+                  "y": 1
+                },
+                "value": 2
+              },
+              null,
+              null
+            ]
+          ]
+        },
+        "score": 696,
+        "moves": 75,
+        "won": false,
+        "over": false
+      },
+      "randomState": 78731182,
+      "peakScore": 828
+    }
+  },
+  {
+    "name": "v3-undo-spent-after-claimed-milestone",
+    "seed": 42,
+    "version": 3,
+    "actions": [
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",0],
+      ["move",0],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",0],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["undo"]
+    ],
+    "expected": {
+      "peakScore": 828,
+      "bestTileEver": 128,
+      "movesAtPeakScore": 76,
+      "state": {
+        "board": [
+          [0,2,4,8],
+          [0,0,16,64],
+          [0,0,0,64],
+          [0,2,0,0]
+        ],
+        "score": 696,
+        "moves": 75,
+        "won": false,
+        "over": false,
+        "keepPlaying": false,
+        "bonuses": {
+          "undo": 1,
+          "swap": 2,
+          "remove": 2
+        },
+        "reached": {
+          "128": true
+        },
+        "canUndo": false,
+        "rng": 78731182
+      }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            null,
+            {
+              "position": {
+                "x": 0,
+                "y": 1
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 0,
+                "y": 2
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 0,
+                "y": 3
+              },
+              "value": 8
+            }
+          ],
+          [
+            null,
+            null,
+            {
+              "position": {
+                "x": 1,
+                "y": 2
+              },
+              "value": 16
+            },
+            {
+              "position": {
+                "x": 1,
+                "y": 3
+              },
+              "value": 64
+            }
+          ],
+          [
+            null,
+            null,
+            null,
+            {
+              "position": {
+                "x": 2,
+                "y": 3
+              },
+              "value": 64
+            }
+          ],
+          [
+            null,
+            {
+              "position": {
+                "x": 3,
+                "y": 1
+              },
+              "value": 2
+            },
+            null,
+            null
+          ]
+        ]
+      },
+      "score": 696,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 75,
+      "maxTile": 128,
+      "bonuses": {
+        "undo": 1,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {
+        "128": true
+      },
+      "previous": null,
+      "randomState": 78731182,
+      "peakScore": 828
+    }
+  },
+  {
+    "name": "v3-undo-repeated-merge-refills-after-reload",
+    "seed": 42,
+    "version": 3,
+    "actions": [
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",0],
+      ["move",0],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",0],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["undo"],
+      ["move",3]
+    ],
+    "expected": {
+      "peakScore": 828,
+      "bestTileEver": 128,
+      "movesAtPeakScore": 76,
+      "state": {
+        "board": [
+          [0,4,4,8],
+          [0,0,16,128],
+          [0,0,0,0],
+          [0,0,0,4]
+        ],
+        "score": 828,
+        "moves": 76,
+        "won": false,
+        "over": false,
+        "keepPlaying": false,
+        "bonuses": {
+          "undo": 2,
+          "swap": 2,
+          "remove": 2
+        },
+        "reached": {
+          "128": true
+        },
+        "canUndo": true,
+        "rng": 3931129270
+      }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            null,
+            {
+              "position": {
+                "x": 0,
+                "y": 1
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 0,
+                "y": 2
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 0,
+                "y": 3
+              },
+              "value": 8
+            }
+          ],
+          [
+            null,
+            null,
+            {
+              "position": {
+                "x": 1,
+                "y": 2
+              },
+              "value": 16
+            },
+            {
+              "position": {
+                "x": 1,
+                "y": 3
+              },
+              "value": 128
+            }
+          ],
+          [null,null,null,null],
+          [
+            null,
+            null,
+            null,
+            {
+              "position": {
+                "x": 3,
+                "y": 3
+              },
+              "value": 4
+            }
+          ]
+        ]
+      },
+      "score": 828,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 76,
+      "maxTile": 128,
+      "bonuses": {
+        "undo": 2,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {
+        "128": true
+      },
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              null,
+              {
+                "position": {
+                  "x": 0,
+                  "y": 1
+                },
+                "value": 2
+              },
+              {
+                "position": {
+                  "x": 0,
+                  "y": 2
+                },
+                "value": 4
+              },
+              {
+                "position": {
+                  "x": 0,
+                  "y": 3
+                },
+                "value": 8
+              }
+            ],
+            [
+              null,
+              null,
+              {
+                "position": {
+                  "x": 1,
+                  "y": 2
+                },
+                "value": 16
+              },
+              {
+                "position": {
+                  "x": 1,
+                  "y": 3
+                },
+                "value": 64
+              }
+            ],
+            [
+              null,
+              null,
+              null,
+              {
+                "position": {
+                  "x": 2,
+                  "y": 3
+                },
+                "value": 64
+              }
+            ],
+            [
+              null,
+              {
+                "position": {
+                  "x": 3,
+                  "y": 1
+                },
+                "value": 2
+              },
+              null,
+              null
+            ]
+          ]
+        },
+        "score": 696,
+        "moves": 75,
+        "won": false,
+        "over": false
+      },
+      "randomState": 3931129270,
+      "peakScore": 828
+    }
+  },
+  {
+    "name": "v3-undo-repeated-redo-awards-each-merge",
+    "seed": 42,
+    "version": 3,
+    "actions": [
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",0],
+      ["move",0],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",0],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["undo"],
+      ["move",3],
+      ["undo"],
+      ["move",3],
+      ["undo"],
+      ["move",3],
+      ["undo"],
+      ["move",3]
+    ],
+    "expected": {
+      "peakScore": 828,
+      "bestTileEver": 128,
+      "movesAtPeakScore": 76,
+      "state": {
+        "board": [
+          [0,4,4,8],
+          [0,2,16,128],
+          [0,0,0,0],
+          [0,0,0,0]
+        ],
+        "score": 828,
+        "moves": 76,
+        "won": false,
+        "over": false,
+        "keepPlaying": false,
+        "bonuses": {
+          "undo": 2,
+          "swap": 2,
+          "remove": 2
+        },
+        "reached": {
+          "128": true
+        },
+        "canUndo": true,
+        "rng": 1045054048
+      }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            null,
+            {
+              "position": {
+                "x": 0,
+                "y": 1
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 0,
+                "y": 2
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 0,
+                "y": 3
+              },
+              "value": 8
+            }
+          ],
+          [
+            null,
+            {
+              "position": {
+                "x": 1,
+                "y": 1
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 1,
+                "y": 2
+              },
+              "value": 16
+            },
+            {
+              "position": {
+                "x": 1,
+                "y": 3
+              },
+              "value": 128
+            }
+          ],
+          [null,null,null,null],
+          [null,null,null,null]
+        ]
+      },
+      "score": 828,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 76,
+      "maxTile": 128,
+      "bonuses": {
+        "undo": 2,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {
+        "128": true
+      },
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              null,
+              {
+                "position": {
+                  "x": 0,
+                  "y": 1
+                },
+                "value": 2
+              },
+              {
+                "position": {
+                  "x": 0,
+                  "y": 2
+                },
+                "value": 4
+              },
+              {
+                "position": {
+                  "x": 0,
+                  "y": 3
+                },
+                "value": 8
+              }
+            ],
+            [
+              null,
+              null,
+              {
+                "position": {
+                  "x": 1,
+                  "y": 2
+                },
+                "value": 16
+              },
+              {
+                "position": {
+                  "x": 1,
+                  "y": 3
+                },
+                "value": 64
+              }
+            ],
+            [
+              null,
+              null,
+              null,
+              {
+                "position": {
+                  "x": 2,
+                  "y": 3
+                },
+                "value": 64
+              }
+            ],
+            [
+              null,
+              {
+                "position": {
+                  "x": 3,
+                  "y": 1
+                },
+                "value": 2
+              },
+              null,
+              null
+            ]
+          ]
+        },
+        "score": 696,
+        "moves": 75,
+        "won": false,
+        "over": false
+      },
+      "randomState": 1045054048,
+      "peakScore": 828
+    }
+  },
+  {
+    "name": "v3-swap-first-full-drops-reward",
+    "seed": 42,
+    "version": 3,
+    "actions": [
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",0],
+      ["move",0],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",0],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",0],
+      ["move",2],
+      ["move",0],
+      ["move",3],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",3],
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",1]
+    ],
+    "expected": {
+      "peakScore": 1832,
+      "bestTileEver": 256,
+      "movesAtPeakScore": 136,
+      "state": {
+        "board": [
+          [0,0,0,0],
+          [2,0,0,0],
+          [4,2,0,0],
+          [4,256,16,8]
+        ],
+        "score": 1832,
+        "moves": 136,
+        "won": false,
+        "over": false,
+        "keepPlaying": false,
+        "bonuses": {
+          "undo": 2,
+          "swap": 2,
+          "remove": 2
+        },
+        "reached": {
+          "128": true,
+          "256": true
+        },
+        "canUndo": true,
+        "rng": 1850347643
+      }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [null,null,null,null],
+          [
+            {
+              "position": {
+                "x": 1,
+                "y": 0
+              },
+              "value": 2
+            },
+            null,
+            null,
+            null
+          ],
+          [
+            {
+              "position": {
+                "x": 2,
+                "y": 0
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 2,
+                "y": 1
+              },
+              "value": 2
+            },
+            null,
+            null
+          ],
+          [
+            {
+              "position": {
+                "x": 3,
+                "y": 0
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 1
+              },
+              "value": 256
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 2
+              },
+              "value": 16
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 3
+              },
+              "value": 8
+            }
+          ]
+        ]
+      },
+      "score": 1832,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 136,
+      "maxTile": 256,
+      "bonuses": {
+        "undo": 2,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {
+        "128": true,
+        "256": true
+      },
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "value": 2
+              },
+              null,
+              null,
+              null
+            ],
+            [
+              {
+                "position": {
+                  "x": 1,
+                  "y": 0
+                },
+                "value": 2
+              },
+              {
+                "position": {
+                  "x": 1,
+                  "y": 1
+                },
+                "value": 2
+              },
+              null,
+              null
+            ],
+            [
+              {
+                "position": {
+                  "x": 2,
+                  "y": 0
+                },
+                "value": 2
+              },
+              {
+                "position": {
+                  "x": 2,
+                  "y": 1
+                },
+                "value": 128
+              },
+              null,
+              null
+            ],
+            [
+              {
+                "position": {
+                  "x": 3,
+                  "y": 0
+                },
+                "value": 2
+              },
+              {
+                "position": {
+                  "x": 3,
+                  "y": 1
+                },
+                "value": 128
+              },
+              {
+                "position": {
+                  "x": 3,
+                  "y": 2
+                },
+                "value": 16
+              },
+              {
+                "position": {
+                  "x": 3,
+                  "y": 3
+                },
+                "value": 8
+              }
+            ]
+          ]
+        },
+        "score": 1568,
+        "moves": 135,
+        "won": false,
+        "over": false
+      },
+      "randomState": 1850347643,
+      "peakScore": 1832
+    }
+  },
+  {
+    "name": "v3-swap-spent-after-claimed-milestone",
+    "seed": 42,
+    "version": 3,
+    "actions": [
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",0],
+      ["move",0],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",0],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",0],
+      ["move",2],
+      ["move",0],
+      ["move",3],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",3],
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",1],
+      ["undo"],
+      ["swap",0,0,3,2]
+    ],
+    "expected": {
+      "peakScore": 1832,
+      "bestTileEver": 256,
+      "movesAtPeakScore": 136,
+      "state": {
+        "board": [
+          [16,0,0,0],
+          [2,2,0,0],
+          [2,128,0,0],
+          [2,128,2,8]
+        ],
+        "score": 1568,
+        "moves": 135,
+        "won": false,
+        "over": false,
+        "keepPlaying": false,
+        "bonuses": {
+          "undo": 1,
+          "swap": 1,
+          "remove": 2
+        },
+        "reached": {
+          "128": true,
+          "256": true
+        },
+        "canUndo": false,
+        "rng": 1850347643
+      }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            {
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "value": 16
+            },
+            null,
+            null,
+            null
+          ],
+          [
+            {
+              "position": {
+                "x": 1,
+                "y": 0
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 1,
+                "y": 1
+              },
+              "value": 2
+            },
+            null,
+            null
+          ],
+          [
+            {
+              "position": {
+                "x": 2,
+                "y": 0
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 2,
+                "y": 1
+              },
+              "value": 128
+            },
+            null,
+            null
+          ],
+          [
+            {
+              "position": {
+                "x": 3,
+                "y": 0
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 1
+              },
+              "value": 128
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 2
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 3
+              },
+              "value": 8
+            }
+          ]
+        ]
+      },
+      "score": 1568,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 135,
+      "maxTile": 256,
+      "bonuses": {
+        "undo": 1,
+        "swap": 1,
+        "remove": 2
+      },
+      "reached": {
+        "128": true,
+        "256": true
+      },
+      "previous": null,
+      "randomState": 1850347643,
+      "peakScore": 1832
+    }
+  },
+  {
+    "name": "v3-swap-repeated-merge-refills-after-reload",
+    "seed": 42,
+    "version": 3,
+    "actions": [
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",0],
+      ["move",0],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",0],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",0],
+      ["move",2],
+      ["move",0],
+      ["move",3],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",3],
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",1],
+      ["undo"],
+      ["swap",0,0,3,2],
+      ["move",1]
+    ],
+    "expected": {
+      "peakScore": 1832,
+      "bestTileEver": 256,
+      "movesAtPeakScore": 136,
+      "state": {
+        "board": [
+          [0,0,0,0],
+          [16,0,0,2],
+          [2,2,0,0],
+          [4,256,2,8]
+        ],
+        "score": 1828,
+        "moves": 136,
+        "won": false,
+        "over": false,
+        "keepPlaying": false,
+        "bonuses": {
+          "undo": 1,
+          "swap": 2,
+          "remove": 2
+        },
+        "reached": {
+          "128": true,
+          "256": true
+        },
+        "canUndo": true,
+        "rng": 3114172058
+      }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [null,null,null,null],
+          [
+            {
+              "position": {
+                "x": 1,
+                "y": 0
+              },
+              "value": 16
+            },
+            null,
+            null,
+            {
+              "position": {
+                "x": 1,
+                "y": 3
+              },
+              "value": 2
+            }
+          ],
+          [
+            {
+              "position": {
+                "x": 2,
+                "y": 0
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 2,
+                "y": 1
+              },
+              "value": 2
+            },
+            null,
+            null
+          ],
+          [
+            {
+              "position": {
+                "x": 3,
+                "y": 0
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 1
+              },
+              "value": 256
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 2
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 3
+              },
+              "value": 8
+            }
+          ]
+        ]
+      },
+      "score": 1828,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 136,
+      "maxTile": 256,
+      "bonuses": {
+        "undo": 1,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {
+        "128": true,
+        "256": true
+      },
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "value": 16
+              },
+              null,
+              null,
+              null
+            ],
+            [
+              {
+                "position": {
+                  "x": 1,
+                  "y": 0
+                },
+                "value": 2
+              },
+              {
+                "position": {
+                  "x": 1,
+                  "y": 1
+                },
+                "value": 2
+              },
+              null,
+              null
+            ],
+            [
+              {
+                "position": {
+                  "x": 2,
+                  "y": 0
+                },
+                "value": 2
+              },
+              {
+                "position": {
+                  "x": 2,
+                  "y": 1
+                },
+                "value": 128
+              },
+              null,
+              null
+            ],
+            [
+              {
+                "position": {
+                  "x": 3,
+                  "y": 0
+                },
+                "value": 2
+              },
+              {
+                "position": {
+                  "x": 3,
+                  "y": 1
+                },
+                "value": 128
+              },
+              {
+                "position": {
+                  "x": 3,
+                  "y": 2
+                },
+                "value": 2
+              },
+              {
+                "position": {
+                  "x": 3,
+                  "y": 3
+                },
+                "value": 8
+              }
+            ]
+          ]
+        },
+        "score": 1568,
+        "moves": 135,
+        "won": false,
+        "over": false
+      },
+      "randomState": 3114172058,
+      "peakScore": 1832
+    }
+  },
+  {
+    "name": "v3-remove-first-full-drops-reward",
+    "seed": 42,
+    "version": 3,
+    "actions": [
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",0],
+      ["move",0],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",0],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",0],
+      ["move",2],
+      ["move",0],
+      ["move",3],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",3],
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",0],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",1],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",3],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",0],
+      ["move",2],
+      ["move",3]
+    ],
+    "expected": {
+      "peakScore": 4108,
+      "bestTileEver": 512,
+      "movesAtPeakScore": 253,
+      "state": {
+        "board": [
+          [2,2,16,4],
+          [0,0,16,512],
+          [0,2,0,0],
+          [0,0,0,0]
+        ],
+        "score": 4108,
+        "moves": 253,
+        "won": false,
+        "over": false,
+        "keepPlaying": false,
+        "bonuses": {
+          "undo": 2,
+          "swap": 2,
+          "remove": 2
+        },
+        "reached": {
+          "128": true,
+          "256": true,
+          "512": true
+        },
+        "canUndo": true,
+        "rng": 1615449236
+      }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            {
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 0,
+                "y": 1
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 0,
+                "y": 2
+              },
+              "value": 16
+            },
+            {
+              "position": {
+                "x": 0,
+                "y": 3
+              },
+              "value": 4
+            }
+          ],
+          [
+            null,
+            null,
+            {
+              "position": {
+                "x": 1,
+                "y": 2
+              },
+              "value": 16
+            },
+            {
+              "position": {
+                "x": 1,
+                "y": 3
+              },
+              "value": 512
+            }
+          ],
+          [
+            null,
+            {
+              "position": {
+                "x": 2,
+                "y": 1
+              },
+              "value": 2
+            },
+            null,
+            null
+          ],
+          [null,null,null,null]
+        ]
+      },
+      "score": 4108,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 253,
+      "maxTile": 512,
+      "bonuses": {
+        "undo": 2,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {
+        "128": true,
+        "256": true,
+        "512": true
+      },
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "value": 2
+              },
+              null,
+              null,
+              {
+                "position": {
+                  "x": 0,
+                  "y": 3
+                },
+                "value": 2
+              }
+            ],
+            [
+              null,
+              null,
+              {
+                "position": {
+                  "x": 1,
+                  "y": 2
+                },
+                "value": 16
+              },
+              {
+                "position": {
+                  "x": 1,
+                  "y": 3
+                },
+                "value": 2
+              }
+            ],
+            [
+              null,
+              {
+                "position": {
+                  "x": 2,
+                  "y": 1
+                },
+                "value": 2
+              },
+              {
+                "position": {
+                  "x": 2,
+                  "y": 2
+                },
+                "value": 8
+              },
+              {
+                "position": {
+                  "x": 2,
+                  "y": 3
+                },
+                "value": 256
+              }
+            ],
+            [
+              null,
+              null,
+              {
+                "position": {
+                  "x": 3,
+                  "y": 2
+                },
+                "value": 8
+              },
+              {
+                "position": {
+                  "x": 3,
+                  "y": 3
+                },
+                "value": 256
+              }
+            ]
+          ]
+        },
+        "score": 3576,
+        "moves": 252,
+        "won": false,
+        "over": false
+      },
+      "randomState": 1615449236,
+      "peakScore": 4108
+    }
+  },
+  {
+    "name": "v3-remove-spent-after-claimed-milestone",
+    "seed": 42,
+    "version": 3,
+    "actions": [
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",0],
+      ["move",0],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",0],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",0],
+      ["move",2],
+      ["move",0],
+      ["move",3],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",3],
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",0],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",1],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",3],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",0],
+      ["move",2],
+      ["move",3],
+      ["undo"],
+      ["remove",2]
+    ],
+    "expected": {
+      "peakScore": 4108,
+      "bestTileEver": 512,
+      "movesAtPeakScore": 253,
+      "state": {
+        "board": [
+          [0,0,0,0],
+          [0,0,16,0],
+          [0,0,8,256],
+          [0,0,8,256]
+        ],
+        "score": 3576,
+        "moves": 252,
+        "won": false,
+        "over": false,
+        "keepPlaying": false,
+        "bonuses": {
+          "undo": 1,
+          "swap": 2,
+          "remove": 1
+        },
+        "reached": {
+          "128": true,
+          "256": true,
+          "512": true
+        },
+        "canUndo": false,
+        "rng": 1615449236
+      }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [null,null,null,null],
+          [
+            null,
+            null,
+            {
+              "position": {
+                "x": 1,
+                "y": 2
+              },
+              "value": 16
+            },
+            null
+          ],
+          [
+            null,
+            null,
+            {
+              "position": {
+                "x": 2,
+                "y": 2
+              },
+              "value": 8
+            },
+            {
+              "position": {
+                "x": 2,
+                "y": 3
+              },
+              "value": 256
+            }
+          ],
+          [
+            null,
+            null,
+            {
+              "position": {
+                "x": 3,
+                "y": 2
+              },
+              "value": 8
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 3
+              },
+              "value": 256
+            }
+          ]
+        ]
+      },
+      "score": 3576,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 252,
+      "maxTile": 512,
+      "bonuses": {
+        "undo": 1,
+        "swap": 2,
+        "remove": 1
+      },
+      "reached": {
+        "128": true,
+        "256": true,
+        "512": true
+      },
+      "previous": null,
+      "randomState": 1615449236,
+      "peakScore": 4108
+    }
+  },
+  {
+    "name": "v3-remove-repeated-merge-refills-after-reload",
+    "seed": 42,
+    "version": 3,
+    "actions": [
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",0],
+      ["move",0],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",0],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",0],
+      ["move",2],
+      ["move",0],
+      ["move",3],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",0],
+      ["move",3],
+      ["move",3],
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",0],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",0],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",1],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",3],
+      ["move",1],
+      ["move",1],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",1],
+      ["move",3],
+      ["move",1],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",3],
+      ["move",1],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",3],
+      ["move",2],
+      ["move",2],
+      ["move",1],
+      ["move",2],
+      ["move",0],
+      ["move",2],
+      ["move",3],
+      ["undo"],
+      ["remove",2],
+      ["move",3]
+    ],
+    "expected": {
+      "peakScore": 4108,
+      "bestTileEver": 512,
+      "movesAtPeakScore": 253,
+      "state": {
+        "board": [
+          [0,0,16,512],
+          [0,0,16,0],
+          [2,0,0,0],
+          [0,0,0,0]
+        ],
+        "score": 4104,
+        "moves": 253,
+        "won": false,
+        "over": false,
+        "keepPlaying": false,
+        "bonuses": {
+          "undo": 1,
+          "swap": 2,
+          "remove": 2
+        },
+        "reached": {
+          "128": true,
+          "256": true,
+          "512": true
+        },
+        "canUndo": true,
+        "rng": 1692210711
+      }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            null,
+            null,
+            {
+              "position": {
+                "x": 0,
+                "y": 2
+              },
+              "value": 16
+            },
+            {
+              "position": {
+                "x": 0,
+                "y": 3
+              },
+              "value": 512
+            }
+          ],
+          [
+            null,
+            null,
+            {
+              "position": {
+                "x": 1,
+                "y": 2
+              },
+              "value": 16
+            },
+            null
+          ],
+          [
+            {
+              "position": {
+                "x": 2,
+                "y": 0
+              },
+              "value": 2
+            },
+            null,
+            null,
+            null
+          ],
+          [null,null,null,null]
+        ]
+      },
+      "score": 4104,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 253,
+      "maxTile": 512,
+      "bonuses": {
+        "undo": 1,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {
+        "128": true,
+        "256": true,
+        "512": true
+      },
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [null,null,null,null],
+            [
+              null,
+              null,
+              {
+                "position": {
+                  "x": 1,
+                  "y": 2
+                },
+                "value": 16
+              },
+              null
+            ],
+            [
+              null,
+              null,
+              {
+                "position": {
+                  "x": 2,
+                  "y": 2
+                },
+                "value": 8
+              },
+              {
+                "position": {
+                  "x": 2,
+                  "y": 3
+                },
+                "value": 256
+              }
+            ],
+            [
+              null,
+              null,
+              {
+                "position": {
+                  "x": 3,
+                  "y": 2
+                },
+                "value": 8
+              },
+              {
+                "position": {
+                  "x": 3,
+                  "y": 3
+                },
+                "value": 256
+              }
+            ]
+          ]
+        },
+        "score": 3576,
+        "moves": 252,
+        "won": false,
+        "over": false
+      },
+      "randomState": 1692210711,
+      "peakScore": 4108
+    }
   }
 ]

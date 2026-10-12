@@ -8,7 +8,7 @@ use InvalidArgumentException;
 
 /** Deterministic, versioned rules shared with the browser's recorded games. */
 final class GameEngine {
-	public const VERSION = 2;
+	public const VERSION = 3;
 	public const MAX_ACTIONS = 50_000;
 	private const SIZE = 4;
 	private const BONUS_MILESTONES = [128 => 'undo', 256 => 'swap', 512 => 'remove'];
@@ -35,7 +35,7 @@ final class GameEngine {
 		if (PHP_INT_SIZE < 8 || $seed < 1 || $seed > 0xffffffff) {
 			throw new InvalidArgumentException('Invalid game seed');
 		}
-		if (!in_array($version, [1, 2], true)) {
+		if (!in_array($version, [1, 2, 3], true)) {
 			throw new InvalidArgumentException('Unsupported game rules version');
 		}
 		$this->rulesVersion = $version;
@@ -48,6 +48,12 @@ final class GameEngine {
 
 	public function getRulesVersion(): int {
 		return $this->rulesVersion;
+	}
+
+	/** Preserve the verified position at the signed cutover to current rules. */
+	public function upgradeRules(): void {
+		$this->rulesVersion = self::VERSION;
+		$this->pendingBonuses = ['undo' => 0, 'swap' => 0, 'remove' => 0];
 	}
 
 	/**
@@ -284,7 +290,7 @@ final class GameEngine {
 
 	private function awardBonus(int $value): void {
 		$type = self::BONUS_MILESTONES[$value] ?? null;
-		if ($type !== null && !isset($this->reached[$value])) {
+		if ($type !== null && ($this->rulesVersion === 3 || !isset($this->reached[$value]))) {
 			$this->reached[$value] = true;
 			if ($this->bonuses[$type] < 2) {
 				$this->bonuses[$type]++;

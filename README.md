@@ -13,23 +13,22 @@ of the instance.
   board, score, bonuses, Undo snapshot and random state. Opening the app in
   another browser or device resumes that game. Browser `localStorage`, separated
   by user and installation URL, also keeps a copy for offline play.
-* **Bonuses** (buttons under the board, two ready charges each):
-  * *Undo* takes back the last move (one level); one more charge when the first
-    128 tile of a game is made.
-  * *Swap* trades two tiles with different values; one more charge at the first 256.
+* **Bonuses** (buttons under the board, two charges each):
+  * *Undo* takes back the last move (one level); each new 128 tile earns a charge.
+  * *Swap* trades two tiles with different values; each new 256 tile earns a charge.
     A swap that would leave no moves is refused.
   * *Remove* deletes all tiles with the value of the picked tile; one more charge
-    at the first 512.
+    for each new 512 tile.
 
-  A charge is earned only the first time that tile is made in a game. If the two
-  ready charges are full, the earned charge is held and shown as `+1` on the
-  counter. The next successful use spends a ready charge and moves the held
-  charge into its place. Neither earned charges nor the milestone record are
-  rolled back by Undo, so undoing and repeating the merge cannot earn another
-  charge. Swap and Remove are not moves: no new tile appears, and they
+  Each qualifying merge adds one charge when fewer than two remain. With two
+  charges, the reward is discarded; there is no reserve. Two qualifying merges
+  in one move are handled separately, so a supply of zero can become two.
+  Undo spends one charge and does not restore old bonus counts; repeating a
+  qualifying merge after Undo earns a charge again if there is room.
+  Swap and Remove are not moves: no new tile appears, and they
   clear the undo snapshot. If Remove clears the entire board, two starting
   tiles appear so the game can continue. On the game over / win screen only
-  Undo works. Ready and held charges, the undo snapshot, the biggest tile and
+  Undo works. Charges, the undo snapshot, the biggest tile and
   the Keep going choice are saved with the running game.
 * All controls work with a keyboard. In Swap/Remove mode, arrows select a cell,
   Enter/Space picks a tile and Escape cancels. Ordinary moves use arrows,
@@ -61,12 +60,18 @@ limited. A game token lasts 90 days; a game is limited to 50,000 successful
 actions. Deleting an account revokes its tokens and removes its records and
 active game.
 
-Rules version 2 keeps earned charges when the ready supply is full. Version 1
+Rules version 3 awards charges for every qualifying merge. Version 1 and 2
 proofs still replay with their original rules, so older pending score submissions
-remain verifiable. When an active version 1 game is loaded, the server upgrades
-it to version 2 with the same seed and action history. The replacement session
-includes `previousToken` to link the upgrade. The browser carries a compatible
-unsent local tail into the new session before replacing its board.
+remain verifiable. Loading an older active game upgrades its future actions to
+version 3. Its seed, board, score, ready charges and history are preserved; the
+version 2 reserve is removed. The signed replacement session includes
+`previousToken` and `cutover`, the number of actions verified under the old rules.
+An upgrade from a version 2 session linked to version 1 also includes
+`ancestorToken`, so an older browser can carry its compatible history forward.
+Compatible unsent old-rule actions are uploaded with `upgradeFrom: oldToken`
+before the browser switches rules. The server may extend the cutover only while
+no version 3 actions have been saved. Otherwise, the current server game wins
+and the older local history is backed up.
 
 A connection is required to start a new verified game. An existing saved game
 can continue offline. Successful actions are saved after a short debounce,
@@ -101,11 +106,12 @@ Version 0.3.0 adds server storage for active games. An existing signed browser
 game is adopted when the account has no active server game yet; verified
 leaderboard records are retained.
 
-Version 0.4.0 fixes the loss of a milestone charge earned while the ready supply
-was full. Existing active games are replayed and upgraded automatically, including
-recovering those earned charges; the board, score, random stream and action
-history are preserved. An offline version 1 game keeps its original rules until
-it reconnects and completes the upgrade.
+Version 0.4.0 introduced rules version 2 with one reserved first-milestone charge.
+
+Version 0.5.0 introduces rules version 3: every qualifying merge replenishes its
+bonus when the supply is below two. Existing active games switch rules without
+resetting their board or action history. An offline version 1 or 2 game keeps
+its original rules until it reconnects and completes the upgrade.
 
 ## Layout
 

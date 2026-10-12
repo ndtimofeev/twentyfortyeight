@@ -42,13 +42,13 @@
 				</div>
 
 				<div class="bonus-bar">
-					<button type="button" class="bonus-button" data-bonus="undo" title="Undo the last move. Earn one charge at the first 128 tile; it is held if the two ready charges are full.">
+					<button type="button" class="bonus-button" data-bonus="undo" title="Undo the last move. Each new 128 tile adds one charge if fewer than two remain.">
 						<span class="bonus-name">Undo</span><span class="bonus-count">2</span>
 					</button>
-					<button type="button" class="bonus-button" aria-pressed="false" data-bonus="swap" title="Swap two tiles. Earn one charge at the first 256 tile; it is held if the two ready charges are full.">
+					<button type="button" class="bonus-button" aria-pressed="false" data-bonus="swap" title="Swap two tiles. Each new 256 tile adds one charge if fewer than two remain.">
 						<span class="bonus-name">Swap</span><span class="bonus-count">2</span>
 					</button>
-					<button type="button" class="bonus-button" aria-pressed="false" data-bonus="remove" title="Remove all tiles with one value. Earn one charge at the first 512 tile; it is held if the two ready charges are full.">
+					<button type="button" class="bonus-button" aria-pressed="false" data-bonus="remove" title="Remove all tiles with one value. Each new 512 tile adds one charge if fewer than two remain.">
 						<span class="bonus-name">Remove</span><span class="bonus-count">2</span>
 					</button>
 				</div>

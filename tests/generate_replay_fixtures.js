@@ -228,6 +228,7 @@ function generate() {
 	for (let i = 0; i < 12 && !persisted.game.over; i++) apply(persisted, ['move', chooseMove(persisted.game)])
 	fixtures.push(fixture('verified-after-continue-reload', persisted))
 	addVersion2Fixtures(fixtures)
+	addVersion3Fixtures(fixtures)
 	return fixtures
 }
 
@@ -294,6 +295,63 @@ function addVersion2Fixtures(fixtures) {
 			assert.strictEqual(env.game.bonuses[type], 1)
 			assert.strictEqual(env.game.pendingBonuses[type], 0)
 			fixtures.push(fixture(`v2-${type}-second-use-costs-charge`, env))
+		}
+	}
+}
+
+function addVersion3Fixtures(fixtures) {
+	const win = fixtures.find(item => item.name === 'verified-win-2048')
+	const milestones = [[128, 'undo'], [256, 'swap'], [512, 'remove']]
+	const firstMoves = {}
+	const probe = createGame(win.seed)
+	win.actions.forEach((action, index) => {
+		apply(probe, action)
+		for (const [value] of milestones) if (probe.game.reached[value] && !firstMoves[value]) firstMoves[value] = index + 1
+	})
+	const merged = (env, value) => env.game.grid.cells.some(column => column.some(tile => tile && tile.value === value && tile.mergedFrom))
+	const swapBeforeMerge = (env, value, direction) => {
+		const cells = []
+		env.game.grid.eachCell((x, y, tile) => { if (tile && tile.value < value / 2) cells.push([x, y, tile.value]) })
+		for (const a of cells) for (const b of cells) {
+			if (a[2] === b[2]) continue
+			const action = ['swap', a[0], a[1], b[0], b[1]]
+			const trial = createGame(env.seed, copy(env.stored.state), copy(env.stored), 3)
+			if (!apply(trial, action)) continue
+			apply(trial, ['move', direction])
+			if (!merged(trial, value)) continue
+			assert.ok(apply(env, action))
+			return
+		}
+		throw new Error('A valid swap retaining the fixture merge is required')
+	}
+	for (const [value, type] of milestones) {
+		let env = createGame(win.seed, null, null, 3)
+		const prefix = win.actions.slice(0, firstMoves[value])
+		for (const action of prefix) apply(env, action)
+		assert.strictEqual(env.game.bonuses[type], 2)
+		assert.strictEqual(env.game.reached[value], true)
+		assert.strictEqual(Object.hasOwn(env.game.serialize(), 'pendingBonuses'), false)
+		fixtures.push(fixture(`v3-${type}-first-full-drops-reward`, env))
+		assert.ok(apply(env, ['undo']))
+		if (type === 'swap') swapBeforeMerge(env, value, prefix.at(-1)[1])
+		if (type === 'remove') assert.ok(apply(env, ['remove', 2]))
+		assert.strictEqual(env.game.bonuses[type], 1)
+		fixtures.push(fixture(`v3-${type}-spent-after-claimed-milestone`, env))
+		const beforeReload = expected(env)
+		env = createGame(env.seed, env.stored.state, env.stored, 3)
+		assert.deepStrictEqual(expected(env), beforeReload)
+		apply(env, prefix.at(-1))
+		assert.ok(merged(env, value), 'Repeated merge must actually produce the matching tile')
+		assert.strictEqual(env.game.bonuses[type], 2)
+		fixtures.push(fixture(`v3-${type}-repeated-merge-refills-after-reload`, env))
+		if (type === 'undo') {
+			for (let i = 0; i < 3; i++) {
+				assert.ok(apply(env, ['undo']))
+				assert.strictEqual(env.game.bonuses.undo, 1)
+				apply(env, prefix.at(-1))
+				assert.strictEqual(env.game.bonuses.undo, 2)
+			}
+			fixtures.push(fixture('v3-undo-repeated-redo-awards-each-merge', env))
 		}
 	}
 }

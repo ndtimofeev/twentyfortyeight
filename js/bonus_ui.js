@@ -239,7 +239,14 @@ BonusUI.prototype.update = function () {
     var button = this.buttons[type];
 
     var count = this.game.bonuses ? this.game.bonuses[type] : 0;
-    var pending = this.game.pendingBonuses ? this.game.pendingBonuses[type] || 0 : 0;
+    var version = this.game.rulesVersion || 3;
+    var pending = version === 2 && this.game.pendingBonuses ? this.game.pendingBonuses[type] || 0 : 0;
+    var value = { undo: 128, swap: 256, remove: 512 }[type];
+    var description = { undo: "Undo the last move.", swap: "Swap two tiles.", remove: "Remove all tiles with one value." }[type];
+    button.setAttribute("title", description + (version >= 3
+      ? " Each new " + value + " tile adds one charge if fewer than two remain."
+      : " Earn one charge at the first " + value + " tile." +
+        (version === 2 ? " It is held if the two ready charges are full." : "")));
     var counter = button.querySelector(".bonus-count");
     counter.textContent = count;
     counter.setAttribute("data-pending", pending);

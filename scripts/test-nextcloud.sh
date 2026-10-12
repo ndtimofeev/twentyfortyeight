@@ -72,8 +72,10 @@ done
 
 TEST_NEXTCLOUD_PASSWORD="$test_password" python3 "$repo_dir/scripts/smoke-nextcloud.py" "$test_url"
 if [ -n "${TEST_BROWSER_SMOKE:-}" ]; then
-  docker exec --user www-data --env "OC_PASS=$test_password" "$container_name" \
-    php occ user:add --password-from-env smoke-legacy
+  for legacy_user in smoke-legacy smoke-legacy-v2 smoke-legacy-ancestor; do
+    docker exec --user www-data --env "OC_PASS=$test_password" "$container_name" \
+      php occ user:add --password-from-env "$legacy_user"
+  done
   legacy_fixture="$(mktemp)"
   docker exec --user www-data --env TFE_ISOLATED_TEST=1 "$container_name" \
     php custom_apps/twentyfortyeight/scripts/seed-legacy-game.php > "$legacy_fixture"

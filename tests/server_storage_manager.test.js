@@ -1190,3 +1190,225 @@ test('normal compatible CAS conflicts back off instead of immediately retrying f
   assert.equal(activePuts(env).length, 3);
   assert.deepEqual(plain(env.manager.actions), [['move', 3]]);
 });
+
+const v3Session = (token, previousToken, cutover = 0, seed = 123) => previousToken === undefined
+  ? { token, seed, version: 3 } : { token, previousToken, cutover, seed, version: 3 };
+
+test('native version 3 restores without a pending bank or a promotion request', async () => {
+  const env = load({ serverGame: game(v3Session('fresh-v3'), [], 0, state(0, 2)) });
+  const restored = await env.manager.prepareGame(null);
+  assert.equal(restored.session.version, 3);
+  assert.equal(restored.pendingBonuses, undefined);
+  assert.equal(env.manager.validLocalGame(restored), true);
+  assert.equal(activePuts(env).length, 0);
+  assert.equal(env.manager.validLocalGame(Object.assign({}, restored, { pendingBonuses: { undo: 0, swap: 0, remove: 0 } })), false);
+});
+
+test('offline version 2 banked actions extend the v3 cutover and preserve their ready counter', async () => {
+  const oldHistory = [['move', 3], ['undo'], ['move', 0], ['undo']];
+  const oldBoard = v2Board(1200, 128, 555);
+  oldBoard.bonuses.undo = 1; // Under v2 the first Undo used a banked refill, then the second spent one.
+  const old = localGame(game(v2Session('old-v2'), oldHistory, 1, oldBoard));
+  const upgraded = game(v3Session('initial-v3', 'old-v2', 1), [['move', 3]], 2, state(1200, 128));
+  const verified = Object.assign(state(1200, 128, 555), { bonuses: { undo: 1, swap: 2, remove: 2 } });
+  const env = load({ serverGame: upgraded, fetch(call) {
+    if (call.init.method === 'PUT') {
+      assert.deepEqual(call.body, { session: 'initial-v3', actions: oldHistory, revision: 2, upgradeFrom: 'old-v2' });
+      return Promise.resolve(response({ game: game(v3Session('tail-v3', 'old-v2', 4), oldHistory, 3, verified) }));
+    }
+  } });
+  const restored = await env.manager.prepareGame(old);
+  assert.equal(restored.session.version, 3);
+  assert.equal(restored.session.cutover, 4);
+  assert.equal(restored.bonuses.undo, 1, 'the old full tail is replayed under v2 before switching to v3');
+  assert.equal(restored.pendingBonuses, undefined);
+  assert.equal(restored.randomState, 555);
+  assert.deepEqual(restored.actions, oldHistory);
+  assert.equal(env.manager.gameTransitioning, false);
+});
+
+test('offline version 1 tails can be promoted directly to a linked version 3 session', async () => {
+  const history = [['move', 3], ['move', 0]];
+  const upgraded = game(v3Session('initial-v3', 'old-v1', 1), [['move', 3]], 2, state(1200, 128));
+  const env = load({ serverGame: upgraded, fetch(call) {
+    if (call.init.method === 'PUT') {
+      assert.equal(call.body.upgradeFrom, 'old-v1');
+      return Promise.resolve(response({ game: game(v3Session('tail-v3', 'old-v1', 2), history, 3, state(1300, 128, 555)) }));
+    }
+  } });
+  const restored = await env.manager.prepareGame(localGame(game(session('old-v1'), history, 1, state(1300, 128, 555))));
+  assert.equal(restored.session.version, 3);
+  assert.equal(restored.session.cutover, 2);
+  assert.deepEqual(restored.actions, history);
+});
+
+test('an offline v1 ancestor tail uses the signed v2 parent and rebases a compatible v3 cutover', async () => {
+  const history = [['move', 3], ['move', 0], ['undo']];
+  const descendant = (token, cutover) => Object.assign(v3Session(token, 'old-v2', cutover), { ancestorToken: 'old-v1' });
+  const store = { game: game(descendant('initial-v3', 1), history.slice(0, 1), 3, state(1200, 128)) };
+  const verified = Object.assign(state(1300, 128, 555), { bonuses: { undo: 1, swap: 2, remove: 2 } });
+  let puts = 0;
+  const env = load({ gameStore: store, fetch(call) {
+    if (call.init.method === 'PUT') {
+      assert.equal(call.body.upgradeFrom, 'old-v2', 'the server replays the tail using its signed v2 parent');
+      assert.deepEqual(call.body.actions, history, 'the complete offline v1 tail must survive both requests');
+      if (++puts === 1) {
+        assert.equal(call.body.session, 'initial-v3');
+        assert.equal(call.body.revision, 3);
+        store.game = game(descendant('rebased-v3', 2), history.slice(0, 2), 4, state(1300, 128));
+        return Promise.resolve(response({ message: 'Another old tail was adopted', game: store.game }, 409));
+      }
+      assert.equal(call.body.session, 'rebased-v3');
+      assert.equal(call.body.revision, 4);
+      return Promise.resolve(response({ game: game(descendant('full-v3', 3), history, 5, verified) }));
+    }
+  } });
+  const restored = await env.manager.prepareGame(localGame(game(session('old-v1'), history, 1, state(1300, 128, 555))));
+  assert.equal(activePuts(env).length, 2);
+  assert.equal(restored.session.version, 3);
+  assert.equal(restored.session.previousToken, 'old-v2');
+  assert.equal(restored.session.ancestorToken, 'old-v1');
+  assert.equal(restored.session.cutover, 3);
+  assert.deepEqual(restored.actions, history);
+  assert.equal(restored.bonuses.undo, 1);
+  assert.equal(restored.pendingBonuses, undefined);
+  assert.equal(env.manager.gameTransitioning, false);
+});
+
+test('an already played v3 suffix wins over its offline v1 ancestor tail', async () => {
+  const history = [['move', 3], ['move', 0], ['undo']];
+  const linked = Object.assign(v3Session('v3-with-moves', 'old-v2', 1), { ancestorToken: 'old-v1' });
+  const env = load({ serverGame: game(linked, history.slice(0, 2), 4, state(1300, 128, 777)) });
+  const restored = await env.manager.prepareGame(localGame(game(session('old-v1'), history, 1, state(1300, 128, 555))));
+  assert.equal(activePuts(env).length, 0);
+  assert.equal(restored.session.token, 'v3-with-moves');
+  assert.deepEqual(restored.actions, history.slice(0, 2));
+  assert.equal(restored.randomState, 777);
+  assert.deepEqual(JSON.parse(env.shared.get(env.manager.local.gameStateKey + '.superseded')).actions, history);
+});
+
+test('a v3 session with an unrelated parent cannot infer an absent v1 ancestor from the seed', async () => {
+  const history = [['move', 3], ['move', 0]];
+  const env = load({ serverGame: game(v3Session('unrelated-v3', 'other-v2', 1), history.slice(0, 1), 3, state(1200, 128)) });
+  const restored = await env.manager.prepareGame(localGame(game(session('old-v1'), history, 1, state(1300, 128))));
+  assert.equal(activePuts(env).length, 0);
+  assert.equal(restored.session.token, 'unrelated-v3');
+  assert.deepEqual(restored.actions, history.slice(0, 1));
+  assert.deepEqual(JSON.parse(env.shared.get(env.manager.local.gameStateKey + '.superseded')).actions, history);
+  assert.equal(env.manager.validLocalGame(Object.assign({}, restored, { session: Object.assign({}, restored.session, { ancestorToken: 42 }) })), false);
+});
+
+test('an already played v3 suffix wins over an older-rule offline tail without retrying', async () => {
+  const oldHistory = [['move', 3], ['undo'], ['move', 0], ['undo']];
+  const canonical = game(v3Session('v3-with-moves', 'old-v2', 1), oldHistory.slice(0, 2), 3, state(1200, 128, 777));
+  const env = load({ serverGame: canonical });
+  const old = localGame(game(v2Session('old-v2'), oldHistory, 1, v2Board(1200, 128, 555)));
+  const restored = await env.manager.prepareGame(old);
+  assert.equal(activePuts(env).length, 0, 'the cutover cannot move past canonical actions already played under v3');
+  assert.equal(restored.actions.length, 2);
+  assert.equal(restored.randomState, 777);
+  assert.equal(JSON.parse(env.shared.get(env.manager.local.gameStateKey + '.superseded')).actions.length, 4);
+});
+
+test('a CAS winner that starts v3 moves stops old-tail promotion after one request', async () => {
+  const store = { game: game(v2Session('old-v2'), [['move', 3]], 1, v2Board(1200, 128)) };
+  const env = load({ gameStore: store, fetch(call) {
+    if (call.init.method === 'PUT') {
+      store.game = game(v3Session('v3-with-moves', 'old-v2', 1), [['move', 3], ['move', 0]], 3, state(1250, 128, 777));
+      return Promise.resolve(response({ message: 'Version 3 actions already exist', game: store.game }, 409));
+    }
+  } });
+  await env.manager.prepareGame(null);
+  move(env.manager, 0, 1250, 128);
+  move(env.manager, 1, 1300, 128);
+  env.manager.setGameState(v2Board(1300, 128, 555));
+  store.game = game(v3Session('initial-v3', 'old-v2', 1), [['move', 3]], 2, state(1200, 128));
+  const messages = [];
+  env.manager.onGameChange((board, message) => messages.push(message));
+  await env.manager.refreshGame();
+  assert.equal(activePuts(env).length, 1);
+  assert.equal(env.manager.session.version, 3);
+  assert.equal(env.manager.actions.length, 2);
+  assert.match(messages[0], /changed in another browser/);
+  assert.equal(env.manager.gameTransitioning, false);
+  assert.deepEqual(env.pending()[0].actions, [['move', 3], ['move', 0], ['move', 1]]);
+});
+
+test('a compatible v3 cutover CAS extension rebases both the signed token and revision', async () => {
+  const history = [['move', 3], ['move', 0], ['move', 1]];
+  const store = { game: game(v3Session('v3-cutover-one', 'old-v2', 1), history.slice(0, 1), 2, state(1200, 128)) };
+  let puts = 0;
+  const env = load({ gameStore: store, fetch(call) {
+    if (call.init.method === 'PUT') {
+      if (++puts === 1) {
+        store.game = game(v3Session('v3-cutover-two', 'old-v2', 2), history.slice(0, 2), 3, state(1250, 128));
+        return Promise.resolve(response({ message: 'Other offline tail was adopted', game: store.game }, 409));
+      }
+      assert.deepEqual(call.body, { session: 'v3-cutover-two', actions: history, revision: 3, upgradeFrom: 'old-v2' });
+      return Promise.resolve(response({ game: game(v3Session('v3-cutover-three', 'old-v2', 3), history, 4, state(1300, 128, 555)) }));
+    }
+  } });
+  const restored = await env.manager.prepareGame(localGame(game(v2Session('old-v2'), history, 1, v2Board(1300, 128, 555))));
+  assert.equal(activePuts(env).length, 2);
+  assert.equal(restored.session.cutover, 3);
+  assert.equal(restored.revision, 4);
+  assert.equal(restored.randomState, 555);
+});
+
+test('concurrent reconciliations share a v3 promotion and freeze until all old-rule actions are verified', async () => {
+  const focusRead = deferred(), promotion = deferred();
+  const store = { game: game(v2Session('old-v2'), [['move', 3]], 1, v2Board(1200, 128)) };
+  let reads = 0, promotions = 0;
+  const env = load({ gameStore: store, fetch(call) {
+    if (call.url.endsWith('/games') && call.init.method === 'GET' && ++reads === 2) return focusRead.promise;
+    if (call.init.method === 'PUT') {
+      if (call.body.session === 'old-v2') return Promise.resolve(response({ message: 'Upgraded', game: store.game }, 409));
+      promotions++;
+      assert.equal(call.body.upgradeFrom, 'old-v2');
+      return promotion.promise;
+    }
+  } });
+  await env.manager.prepareGame(null);
+  const refreshing = env.manager.refreshGame();
+  move(env.manager, 0, 1300, 128);
+  env.manager.setGameState(v2Board(1300, 128, 555));
+  store.game = game(v3Session('initial-v3', 'old-v2', 1), [['move', 3]], 2, state(1200, 128));
+  const saving = env.manager.flushGame();
+  await settle();
+  focusRead.resolve(response({ game: plain(store.game) }));
+  await settle();
+  assert.equal(promotions, 1);
+  assert.equal(env.manager.gameTransitioning, true);
+  assert.throws(() => env.manager.recordAction(['undo']), /being updated/);
+  promotion.resolve(response({ game: game(v3Session('tail-v3', 'old-v2', 2), [['move', 3], ['move', 0]], 3, state(1300, 128, 555)) }));
+  await Promise.all([refreshing, saving]);
+  assert.equal(env.manager.session.version, 3);
+  assert.equal(env.manager.actions.length, 2);
+  assert.equal(env.manager.gameTransitioning, false);
+  assert.equal(env.pending()[0].session, 'old-v2');
+});
+
+test('New Game supersedes a delayed v3 cutover extension without changing the new history', async () => {
+  const promotion = deferred();
+  const store = { game: game(v2Session('old-v2'), [['move', 3]], 1, v2Board(1200, 128)) };
+  const env = load({ gameStore: store, fetch(call) {
+    if (call.init.method === 'PUT') return promotion.promise;
+    if (call.init.method === 'POST' && call.url.endsWith('/games') && call.body.restart) {
+      return Promise.resolve(response({ game: game(v3Session('fresh-v3'), [], 0, state(0, 2)) }));
+    }
+  } });
+  await env.manager.prepareGame(null);
+  move(env.manager, 0, 1300, 128);
+  env.manager.setGameState(v2Board(1300, 128, 555));
+  store.game = game(v3Session('initial-v3', 'old-v2', 1), [['move', 3]], 2, state(1200, 128));
+  const refreshing = env.manager.refreshGame();
+  await settle();
+  env.manager.startNewGame();
+  await env.manager.prepareGame(null);
+  promotion.resolve(response({ game: game(v3Session('tail-v3', 'old-v2', 2), [['move', 3], ['move', 0]], 3, state(1300, 128, 555)) }));
+  await refreshing;
+  assert.equal(env.manager.session.token, 'fresh-v3');
+  assert.equal(env.manager.session.version, 3);
+  assert.equal(env.manager.actions.length, 0);
+  assert.equal(env.manager.gameTransitioning, false);
+});
