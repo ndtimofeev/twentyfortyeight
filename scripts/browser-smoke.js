@@ -110,6 +110,195 @@ async function assertFixtureState(page,expected) {
   await assertRendered(page,expected);
   return actual;
 }
+async function captureGameManager(context) {
+  await context.addInitScript(() => {
+    let installed=false;
+    function install() {
+      if (installed || !document.querySelector('#tfe') || typeof window.GameManager!=='function') return;
+      installed=true;
+      const Original=window.GameManager;
+      window.GameManager=function(...args) {
+        const game=new Original(...args);
+        window.__tfeTestGame=game;
+        return game;
+      };
+      window.GameManager.prototype=Original.prototype;
+    }
+    const requestFrame=window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame=callback => requestFrame(time => {
+      install();
+      callback.call(window,time);
+    });
+    document.addEventListener('DOMContentLoaded',install,{once:true});
+  });
+}
+async function managedState(page) {
+  return page.evaluate(() => {
+    const game=window.__tfeTestGame;
+    const storage=game.storageManager;
+    return {...game.serialize(),session:storage.session,actions:storage.actions,
+      revision:storage.gameRevision,peakScore:storage.gamePeakScore};
+  });
+}
+async function waitManagedReady(page) {
+  await page.waitForFunction(() => {
+    const game=window.__tfeTestGame;
+    return game && !game.initializing && game.grid && game.storageManager.session &&
+      Number(document.querySelector('.score-container').firstChild.textContent)===game.score;
+  });
+}
+function deferred() {
+  let resolve;
+  const promise=new Promise(done => {resolve=done;});
+  return {promise,resolve};
+}
+async function bounded(promise,label) {
+  let timer;
+  try {
+    return await Promise.race([promise,new Promise((_,reject) => {
+      timer=setTimeout(() => reject(new Error('Timed out waiting for '+label)),15000);
+    })]);
+  } finally {clearTimeout(timer);}
+}
+async function sharedDraftRegression(browser,base,errors) {
+  const context=await browser.newContext();
+  const releaseShortAck=deferred();
+  const releaseLongRequest=deferred();
+  try {
+    await captureGameManager(context);
+    const first=await login(context,base,errors);
+    await waitManagedReady(first);
+    const previous=await managedState(first);
+    await first.locator('.restart-button').click();
+    await first.waitForFunction(oldToken => {
+      const game=window.__tfeTestGame;
+      return game && !game.initializing && game.storageManager.session &&
+        game.storageManager.session.token!==oldToken && game.storageManager.actions.length===0;
+    },previous.session.token);
+    await waitManagedReady(first);
+    const initial=await managedState(first);
+    assert.equal(initial.session.version,3);
+    await waitSaved(first,initial);
+    const env=createGame(initial.session.seed,null,null,initial.session.version);
+    assert.deepEqual(boardState(initial),boardState(fixtureState(env)));
+
+    // The first write reaches the real server; only its HTTP response is delayed.
+    const shortCommitted=deferred();
+    let shortGame;
+    let shortError;
+    let firstPut=true;
+    await first.route('**/api/games',async route => {
+      if (route.request().method()==='PUT' && firstPut) {
+        firstPut=false;
+        try {
+          const response=await route.fetch();
+          assert.equal(response.status(),200);
+          shortGame=(await response.json()).game;
+          shortCommitted.resolve();
+          await releaseShortAck.promise;
+          await route.fulfill({response});
+        } catch (error) {
+          shortError=error;
+          shortCommitted.resolve();
+          await route.abort().catch(() => {});
+        }
+      } else if (shortGame) {
+        // Later focus refreshes/retries must not supply the second tab's tail.
+        await route.abort('internetdisconnected');
+      } else await route.continue();
+    });
+    const firstAction=['move',chooseMove(env.game)];
+    assert.notEqual(firstAction[1],null);
+    const shortExpected=fixtureAction(env,firstAction);
+    await playFixtureAction(first,firstAction);
+    assert.deepEqual(boardState(await managedState(first)),boardState(shortExpected));
+    await bounded(shortCommitted.promise,'the short history to commit on the server');
+    if (shortError) throw shortError;
+    assert.equal(shortGame.actions.length,1);
+    assert.deepEqual(boardState(shortGame.state),boardState(shortExpected));
+
+    const second=await context.newPage();
+    second.on('pageerror',error => errors.push(error.message));
+    const longPending=deferred();
+    let longBody;
+    let apiOffline=false;
+    let firstLongPut=true;
+    const secondGames=async route => {
+      if (route.request().method()==='PUT' && firstLongPut) {
+        firstLongPut=false;
+        longBody=route.request().postDataJSON();
+        longPending.resolve();
+        // Keep this compatible tail local until after the offline reload.
+        await releaseLongRequest.promise;
+        await route.abort('internetdisconnected').catch(() => {});
+      } else if (apiOffline) await route.abort('internetdisconnected');
+      else await route.continue();
+    };
+    const offlineScores=route => route.abort('internetdisconnected');
+    await second.route('**/api/games',secondGames);
+    await second.goto(base+'/index.php/apps/twentyfortyeight/');
+    await waitManagedReady(second);
+    const restoredShort=await managedState(second);
+    assert.deepEqual(restoredShort.actions,shortGame.actions);
+    assert.deepEqual(boardState(restoredShort),boardState(shortExpected));
+    apiOffline=true;
+    await second.route('**/api/scores**',offlineScores);
+    const secondAction=['move',chooseMove(env.game)];
+    assert.notEqual(secondAction[1],null);
+    const longExpected=fixtureAction(env,secondAction);
+    await playFixtureAction(second,secondAction);
+    const longer=await managedState(second);
+    assert.deepEqual(boardState(longer),boardState(longExpected));
+    assert.equal(longer.actions.length,2);
+    await bounded(longPending.promise,'the longer compatible local history to attempt saving');
+    assert.deepEqual(longBody.actions,longer.actions);
+    assert.equal(longBody.revision,shortGame.revision);
+
+    // Page routes do not intercept APIRequestContext, so this checks the actual
+    // server independently while both browser writes are held.
+    const api=await second.evaluate(() => ({url:document.querySelector('#tfe').dataset.gamesUrl,
+      token:document.head.dataset.requesttoken}));
+    const serverResponse=await context.request.get(new URL(api.url,base).href,{headers:{
+      requesttoken:api.token,'X-Requested-With':'XMLHttpRequest',Accept:'application/json',
+    }});
+    assert.equal(serverResponse.status(),200);
+    const stillShort=(await serverResponse.json()).game;
+    assert.deepEqual(stillShort.actions,shortGame.actions,'The longer tail must not already exist on the server');
+
+    const lateAck=first.waitForResponse(response => response.request().method()==='PUT' &&
+      response.url().includes('/api/games') && response.status()===200,{timeout:15000});
+    releaseShortAck.resolve();
+    await lateAck;
+    await first.evaluate(async () => {
+      const pending=window.__tfeTestGame.storageManager.gameInFlight;
+      if (pending) await pending;
+    });
+    const recoverable=await second.evaluate(() => window.__tfeTestGame.storageManager.getGameState());
+    assert.deepEqual(recoverable.actions,longer.actions,'A late short ACK must preserve the longer recoverable shared draft');
+    assert.deepEqual(boardState(recoverable),boardState(longExpected));
+
+    releaseLongRequest.resolve();
+    await second.reload();
+    await waitManagedReady(second);
+    const offlineRestored=await managedState(second);
+    assert.equal(offlineRestored.session.token,longer.session.token);
+    assert.deepEqual(offlineRestored.actions,longer.actions,'API-offline reload must restore the complete compatible tail');
+    assert.deepEqual(boardState(offlineRestored),boardState(longExpected));
+    await assertRendered(second,longExpected);
+
+    apiOffline=false;
+    await second.unroute('**/api/scores**',offlineScores);
+    await second.evaluate(() => window.dispatchEvent(new Event('online')));
+    const saved=await waitSaved(second,offlineRestored);
+    assert.deepEqual(saved.actions,longer.actions);
+    assert.deepEqual(boardState(saved.state),boardState(longExpected));
+    console.log('Browser: a late short ACK cannot erase another tab\'s compatible local tail; API-offline reload and later server save preserve it.');
+  } finally {
+    releaseShortAck.resolve();
+    releaseLongRequest.resolve();
+    await context.close();
+  }
+}
 async function milestoneRegression(browser,page,base,errors) {
   const initial=await readState(page);
   assert.equal(initial.session.version,3);
@@ -508,7 +697,9 @@ async function legacyUpgradeRegression(browser,base,errors,file) {
       }
     }
     console.log('Mobile board widths: '+mobileBoards.join(', '));
+    await firstContext.close();
+    await sharedDraftRegression(browser,base,errors);
     assert.deepEqual(errors, []);
-    console.log('Browser milestone rewards, cross-device restore/conflicts, score/reload/Undo, silent saving, mobile geometry/scrolling, keyboard bonuses and restart passed.');
+    console.log('Browser milestone rewards, cross-device restore/conflicts, shared-tab draft recovery, score/reload/Undo, silent saving, mobile geometry/scrolling, keyboard bonuses and restart passed.');
   } finally { await browser.close(); }
 })().catch(e=>{console.error(e.stack || e.message);process.exitCode=1;});

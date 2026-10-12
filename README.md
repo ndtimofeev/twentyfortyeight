@@ -90,6 +90,12 @@ submissions; the last server-saved game can still be restored. If browser
 storage is full, pending results can only survive while
 the page remains open until a successful submission.
 
+Local boards also have immutable checkpoints. A longer compatible history
+survives late acknowledgements and concurrent cache writes from another tab,
+including an offline reload. Covered checkpoints are compacted only after their
+replacement is durable. Divergent histories and earlier games remain separate;
+the current server game determines which compatible history can resume online.
+
 Verification proves that a result is achievable with the issued seed and the
 game rules. It does not prove human play or prevent automation, looking ahead
 at the deterministic random sequence, or trying alternative valid histories.
@@ -112,6 +118,9 @@ Version 0.5.0 introduces rules version 3: every qualifying merge replenishes its
 bonus when the supply is below two. Existing active games switch rules without
 resetting their board or action history. An offline version 1 or 2 game keeps
 its original rules until it reconnects and completes the upgrade.
+
+Version 0.5.1 protects local checkpoints from concurrent tabs and releases the
+old migration's input lock when another device replaces the active game.
 
 ## Layout
 
@@ -193,8 +202,8 @@ CI runs syntax and unit checks, builds an installable archive, and exercises
 the application on Nextcloud 31, 32, 33 and 34. Integration tests use temporary
 users and containers and do not connect to an existing instance.
 The Nextcloud 34 job also uses Playwright/Chromium to check real browser startup,
-keyboard bonuses, seeded restoration, shared games across browser contexts and
-restart. Playwright is only a test
+keyboard bonuses, seeded restoration, shared games across browser contexts,
+concurrent-tab offline recovery and restart. Playwright is only a test
 tool and is not included in the application archive.
 
 ## License

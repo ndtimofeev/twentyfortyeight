@@ -450,9 +450,11 @@ test('invalid saved boards are backed up before obtaining a new server session',
   assert.equal(env.pending()[0].session, 'session-1');
 
   env.shared.set(manager.local.gameStateKey, '{broken json');
-  assert.equal(manager.getGameState(), null);
+  assert.deepEqual(manager.getGameState(), plain(manager.activeState), 'an intact checkpoint restores a broken shared cache');
   assert.equal(env.shared.get(manager.local.gameStateKey + '.invalid'), '{broken json');
   assert.equal(env.pending()[0].session, 'session-1');
+  for (const key of env.shared.keys()) if (key.startsWith(manager.draftKey)) env.shared.delete(key);
+  assert.equal(manager.getGameState(), null, 'an unreadable cache without a checkpoint cannot be restored');
 });
 
 test('restoring an older board does not downgrade its newer queued proof', async () => {

@@ -55,6 +55,8 @@ function ServerStorageManager() {
   // Separate installations in different paths may share an origin and UID.
   var identity = encodeURIComponent(this.scoresUrl) + "." + encodeURIComponent(this.root.dataset.user);
   this.local.gameStateKey = "twentyfortyeight.gameState." + identity;
+  this.draftKey = this.local.gameStateKey + ".draft.";
+  this.currentGameKey = this.local.gameStateKey + ".current";
   this.queueKey = "twentyfortyeight.submissions." + identity;
   this.readQueue(true);
 
@@ -407,7 +409,11 @@ ServerStorageManager.prototype.replayUpgrade = async function (initial, local, g
   }
 };
 
-ServerStorageManager.prototype.activateGame = function (state, savedActions, revision) {
+ServerStorageManager.prototype.activateGame = function (state, savedActions, revision, canonical) {
+  // This history supersedes any migration belonging to the previous one.
+  // Its late finally/response is guarded by gameGeneration.
+  this.gameTransitioning = false;
+  this.gamePromotion = null;
   this.session = Object.assign({}, state.session, { version: state.session.version || 1 });
   this.actions = this.copyActions(state.actions);
   this.gamePeakScore = state.peakScore || state.score || 0;
@@ -420,7 +426,7 @@ ServerStorageManager.prototype.activateGame = function (state, savedActions, rev
   this.gameRetryAt = 0;
   this.gameRetryAttempts = 0;
   this.gameConflictAttempts = 0;
-  this.setGameState(state);
+  this.setGameState(state, canonical !== false);
   if (this.gameDirty) this.scheduleGame(0);
   return this.activeState;
 };
@@ -448,7 +454,7 @@ ServerStorageManager.prototype.prepareGame = function (previousState) {
     var game = response.data.game;
     if (game === null && local && !restart) {
       self.preparingGame = false;
-      var adopted = self.activateGame(local, [], 0);
+      var adopted = self.activateGame(local, [], 0, false);
       self.gameDirty = true; // Adoption of an existing local session, even an empty log.
       self.gameAdopting = true;
       self.scheduleGame(0);
@@ -461,13 +467,24 @@ ServerStorageManager.prototype.prepareGame = function (previousState) {
     // The preceding branch already restored a local game for adoption.
     if (response && response.session) return response;
     var game = response && response.data.game;
+    var server = self.serverState(game);
+    if (!restart) {
+      // The shared cache may have been written by a slower tab. Reconcile
+      // independent drafts against the server before choosing the local tail.
+      var anchor = self.compatibleLocalGame(server, local) ? local : server;
+      var candidate = self.newerLocalGame(anchor, self.readGameDrafts(), server);
+      if (candidate !== server && candidate !== local) {
+        if (local && !self.compatibleLocalGame(server, local)) self.backupGame(local);
+        local = candidate;
+      }
+    }
     if (local && self.isUpgrade(local.session, game && game.session) && self.canExtendUpgrade(game) && self.isPrefix(game.actions, local.actions) &&
         local.actions.length > game.actions.length) {
       response = await self.promoteGame(game, local, generation);
       if (generation !== self.gameGeneration) return null;
       game = response.data.game;
+      server = self.serverState(game);
     }
-    var server = self.serverState(game);
     self.preparingGame = false;
     self.appliedGameSequence = response.sequence;
     self.gameAdopting = false;
@@ -480,7 +497,7 @@ ServerStorageManager.prototype.prepareGame = function (previousState) {
     if (generation !== self.gameGeneration) return null;
     self.preparingGame = false;
     if (local && (!error.status || error.status >= 500 || self.isAuthenticationError(error.status))) {
-      var restored = self.activateGame(local, [], Number.isInteger(local.revision) ? local.revision : 0);
+      var restored = self.activateGame(local, [], Number.isInteger(local.revision) ? local.revision : 0, false);
       self.gameDirty = true;
       self.gamePaused = self.isAuthenticationError(error.status);
       self.gameRetryAt = Date.now() + 1000;
@@ -877,9 +894,15 @@ ServerStorageManager.prototype.flush = function (keepalive) {
 };
 
 ServerStorageManager.prototype.getGameState = function () {
+  if (this.restartRequested) return null;
+  var local = null;
+  var current = null;
   try {
-    return this.local.getGameState();
+    current = this.local.storage.getItem(this.currentGameKey);
+    local = this.local.getGameState();
+    if (local && !this.validLocalGame(local)) throw new Error("Invalid saved board");
   } catch (error) {
+    local = null;
     try {
       var raw = this.local.storage.getItem(this.local.gameStateKey);
       if (raw) this.local.storage.setItem(this.local.gameStateKey + ".invalid", raw);
@@ -887,11 +910,100 @@ ServerStorageManager.prototype.getGameState = function () {
       // The pending submission queue is independent and must stay untouched.
     }
     this.report("error", "The saved board could not be restored. Your pending scores are kept separately.");
-    return null;
   }
+  var drafts = this.readGameDrafts();
+  if (current && local && local.session.token !== current) local = null;
+  if (!local) {
+    var candidates = current ? drafts.filter(function (draft) { return draft.state.session.token === current; }) : drafts;
+    if (candidates.length) {
+      local = candidates.reduce(function (latest, draft) {
+        return draft.savedAt > latest.savedAt ? draft : latest;
+      }).state;
+    }
+  }
+  return local ? this.newerLocalGame(local, drafts) : null;
 };
 
-ServerStorageManager.prototype.setGameState = function (gameState) {
+ServerStorageManager.prototype.readGameDrafts = function () {
+  var drafts = [];
+  var self = this;
+  try {
+    this.storageKeys().forEach(function (key) {
+      if (key.indexOf(self.draftKey) !== 0) return;
+      try {
+        var raw = self.local.storage.getItem(key);
+        if (!raw) return; // A concurrent tab may already have compacted it.
+        var draft = JSON.parse(raw);
+        if (!draft || !Number.isInteger(draft.savedAt) || !self.validLocalGame(draft.state)) throw new Error("Invalid saved draft");
+        drafts.push({ key: key, state: draft.state, savedAt: draft.savedAt });
+      } catch (error) {
+        self.report("error", "A saved board draft could not be read.");
+      }
+    });
+  } catch (error) {
+    this.report("error", "The saved board drafts could not be read.");
+  }
+  return drafts;
+};
+
+ServerStorageManager.prototype.compatibleLocalGame = function (server, local) {
+  return this.validLocalGame(local) &&
+    (server.session.token === local.session.token ||
+      (this.isUpgrade(local.session, server.session) && this.canExtendUpgrade(server))) &&
+    this.isPrefix(server.actions, local.actions);
+};
+
+ServerStorageManager.prototype.newerLocalGame = function (reference, drafts, canonical) {
+  var self = this;
+  return drafts.reduce(function (latest, draft) {
+    return self.compatibleLocalGame(canonical || reference, draft.state) && self.isPrefix(reference.actions, draft.state.actions) &&
+      draft.state.actions.length > latest.actions.length
+      ? draft.state : latest;
+  }, reference);
+};
+
+ServerStorageManager.prototype.persistGameState = function (saved, canonical) {
+  var drafts = this.readGameDrafts();
+  var self = this;
+  var cached;
+  try { cached = this.local.getGameState(); } catch (error) { cached = null; }
+  var covering = this.validLocalGame(cached) && cached.session.token === saved.session.token &&
+    cached.actions.length > saved.actions.length && this.isPrefix(saved.actions, cached.actions) ? cached : saved;
+  var existing = drafts.reduce(function (best, draft) {
+    if (draft.state.session.token !== covering.session.token || !self.isPrefix(covering.actions, draft.state.actions) ||
+        (draft.state.actions.length === covering.actions.length && !self.sameGameState(covering, draft.state))) return best;
+    return !best || draft.state.actions.length > best.state.actions.length ? draft : best;
+  }, null);
+  if (existing) covering = existing.state;
+  else {
+    // Each key is immutable. Another tab can compact this frozen prefix,
+    // but cannot delete a mutable slot just as its owner extends it. Keep an
+    // immutable checkpoint after ACK too: the shared cache can still race.
+    this.local.storage.setItem(this.draftKey + this.newJobId(), JSON.stringify({ state: covering, savedAt: Date.now() }));
+  }
+
+  // Ordinary moves and late ACKs cannot select an older party, even if their
+  // cache write races with another tab's successful New Game.
+  if (canonical) this.local.storage.setItem(this.currentGameKey, saved.session.token);
+  if (!this.validLocalGame(cached) || cached.session.token === saved.session.token || canonical) {
+    // This is a compatibility cache, not the only durable copy. Preserve a
+    // longer compatible tail even when a shorter request is acknowledged.
+    var next = this.validLocalGame(cached) && cached.session.token === saved.session.token &&
+      cached.actions.length > saved.actions.length && this.isPrefix(saved.actions, cached.actions)
+      ? Object.assign({}, cached, { revision: Math.max(cached.revision || 0, saved.revision) }) : saved;
+    this.local.setGameState(next);
+  }
+
+  // A covering immutable checkpoint is durable, including after a server ACK.
+  // Never remove longer tails, other parties, or diverging histories.
+  drafts.forEach(function (draft) {
+    if (draft.state === covering || draft.state.session.token !== covering.session.token ||
+        !self.isPrefix(draft.state.actions, covering.actions)) return;
+    try { self.local.storage.removeItem(draft.key); } catch (error) { /* Safe redundant prefix. */ }
+  });
+};
+
+ServerStorageManager.prototype.setGameState = function (gameState, canonical) {
   var saved = Object.assign({}, gameState, {
     session: this.session,
     actions: this.copyActions(this.actions),
@@ -900,7 +1012,7 @@ ServerStorageManager.prototype.setGameState = function (gameState) {
   });
   this.activeState = saved;
   try {
-    this.local.setGameState(saved);
+    this.persistGameState(saved, canonical);
     if (!this.persistent) this.report("error", "Browser storage is unavailable. This board will not survive a reload.");
   } catch (error) {
     this.report("error", "Browser storage is full or unavailable. Keep this page open until the game is saved.");
