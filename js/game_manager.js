@@ -24,15 +24,30 @@ function GameManager(size, InputManager, Actuator, StorageManager) {
   this.inputManager.on("keepPlaying", this.keepPlaying.bind(this));
   this.inputManager.on("tap", this.bonusUI.tap.bind(this.bonusUI));
 
+  if (this.storageManager.onGameChange) {
+    this.storageManager.onGameChange(this.loadRemoteGame.bind(this));
+  }
+
   this.setup();
 }
 
 // Restart the game
 GameManager.prototype.restart = function () {
   if (this.initializing) return;
-  this.storageManager.clearGameState();
+  if (this.storageManager.startNewGame) this.storageManager.startNewGame();
+  else this.storageManager.clearGameState();
   this.actuator.continueGame(); // Clear the game won/lost message
   this.setup();
+};
+
+// A browser returning to the shared game must clear selections and overlays
+// from its old board before drawing the server's complete restored state.
+GameManager.prototype.loadRemoteGame = function (state, message) {
+  ++this.setupGeneration;
+  if (this.bonusUI.cancel) this.bonusUI.cancel();
+  this.actuator.continueGame();
+  this.initializeState(state);
+  this.setStatus(message || "");
 };
 
 // Keep playing after winning (allows going over 2048)
@@ -167,9 +182,9 @@ GameManager.prototype.actuate = function () {
     this.storageManager.setBestScore(this.score, stats);
   }
 
-  // Clear the state when the game is over (game over only, not win), unless the
-  // last move can still be undone: then a reload must not lose that chance.
-  if (this.over && !this.canUndo()) {
+  // Shared games retain the final board too, so another browser sees the same
+  // result. The original local-only storage keeps its automatic reset behavior.
+  if (this.over && !this.canUndo() && !this.storageManager.onGameChange) {
     this.storageManager.clearGameState();
   } else {
     this.storageManager.setGameState(this.serialize());

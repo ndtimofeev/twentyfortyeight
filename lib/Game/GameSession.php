@@ -41,7 +41,7 @@ final class GameSession {
 	}
 
 	/** Derives leaderboard data from the replay; reported score fields are never trusted. */
-	public function verify(string $uid, string $token, array $actions): array {
+	public function verify(string $uid, string $token, array $actions, bool $includeSavedState = false): array {
 		if (strlen($token) > 512 || !preg_match('/^([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]{43})$/D', $token, $parts)
 			|| !hash_equals($this->signature($uid, $parts[1]), $parts[2])) {
 			throw new InvalidArgumentException('Invalid game session');
@@ -61,7 +61,17 @@ final class GameSession {
 		if ($data['iat'] > $now + self::CLOCK_SKEW || $data['iat'] < $now - self::MAX_AGE) {
 			throw new InvalidArgumentException('Game session has expired; start a new game');
 		}
-		return (new GameEngine($data['s']))->replay($actions);
+		$engine = new GameEngine($data['s']);
+		$result = $engine->replay($actions);
+		if ($includeSavedState) {
+			$result['savedState'] = $engine->savedState();
+			$result['session'] = [
+				'token' => $token,
+				'seed' => $data['s'],
+				'version' => GameEngine::VERSION,
+			];
+		}
+		return $result;
 	}
 
 	private function signature(string $uid, string $payload): string {

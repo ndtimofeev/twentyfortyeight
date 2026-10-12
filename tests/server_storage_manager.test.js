@@ -19,6 +19,9 @@ function state(score, maxTile, randomState = 99) {
   return { score, maxTile, randomState, grid: { size: 4, cells }, moves: 1,
     over: false, won: false, keepPlaying: false, bonuses: { undo: 2, swap: 2, remove: 2 }, reached: {}, previous: null };
 }
+function game(session, actions = [], revision = 0, board = state(0, 2)) {
+  return { session, actions, revision, state: board };
+}
 async function settle() { for (let i = 0; i < 30; i++) await Promise.resolve(); }
 
 function load(options = {}) {
@@ -26,6 +29,8 @@ function load(options = {}) {
   const calls = [], rendered = [], statuses = [];
   const documentEvents = new Map(), windowEvents = new Map(), timers = new Map();
   let now = options.now || 100000, timerId = 0, sessionId = 0;
+  let manager;
+  const gameStore = options.gameStore || { game: options.serverGame || null };
   const root = {
     dataset: {
       scoresUrl: options.scoresUrl || '/nextcloud/apps/twentyfortyeight/api/scores',
@@ -74,16 +79,24 @@ function load(options = {}) {
         const result = options.fetch(call);
         if (result !== undefined) return result;
       }
-      if (url.endsWith('/games')) return Promise.resolve(response({ token: 'session-' + (++sessionId), seed: 123, version: 1 }));
+      if (url.endsWith('/games')) {
+        if (init.method === 'POST') {
+          if (!gameStore.game || call.body.restart) gameStore.game = game({ token: 'session-' + (++sessionId), seed: 123, version: 1 });
+        } else if (init.method === 'PUT') {
+          gameStore.game = game(plain(manager.session), call.body.actions, (gameStore.game ? gameStore.game.revision : 0) + 1,
+            plain(manager.activeState || state(manager.gamePeakScore, manager.gameBestTile)));
+        }
+        return Promise.resolve(response({ game: gameStore.game }));
+      }
       return Promise.resolve(response(scores(options.best || 1000, options.bestTile || 128)));
     }
   });
   for (const name of ['local_storage_manager', 'server_storage_manager']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', name + '.js'), 'utf8'), context);
   }
-  const manager = new context.ServerStorageManager();
+  manager = new context.ServerStorageManager();
   return {
-    manager, calls, rendered, statuses, root, shared, document, timers, context,
+    manager, calls, rendered, statuses, root, shared, document, timers, context, gameStore,
     scorePosts() { return calls.filter(call => call.init.method === 'POST' && call.url.endsWith('/scores')); },
     pending() {
       return [...shared].filter(([key]) => key.startsWith(manager.queueKey + '.job.')).map(([, value]) => JSON.parse(value));
@@ -172,7 +185,7 @@ test('restart and reload preserve old-party jobs separately from the current boa
   move(manager, 3, 1200);
   manager.setGameState(state(1200, 128));
   await manager.flush();
-  await manager.clearGameState();
+  await manager.startNewGame();
   assert.equal(manager.getGameState(), null);
   assert.equal(env.pending().length, 1);
 
@@ -188,7 +201,7 @@ test('restart and reload preserve old-party jobs separately from the current boa
   assert.equal((await reloaded.manager.prepareGame(saved)).randomState, 777);
   assert.equal(reloaded.manager.session.token, 'session-2');
   assert.deepEqual(plain(reloaded.manager.actions), [['move', 2]]);
-  assert.equal(reloaded.calls.filter(call => call.url.endsWith('/games')).length, 0);
+  assert.equal(reloaded.calls.filter(call => call.url.endsWith('/games') && call.init.method === 'POST').length, 0);
   await reloaded.advance(0); // the new party is eligible even while the old one backs off
   await reloaded.advance(1000);
   assert.deepEqual(reloaded.scorePosts().map(call => call.body.session).sort(), ['session-1', 'session-2']);
@@ -239,7 +252,7 @@ test('a higher tile is submitted even when the game score is below the personal 
 test('a late initial GET cannot replace the newer submission leaderboard', async () => {
   const initial = deferred();
   const env = load({ fetch(call) {
-    if (call.init.method === 'GET') return initial.promise;
+    if (call.init.method === 'GET' && call.url.endsWith('/scores')) return initial.promise;
     if (call.url.endsWith('/scores')) return Promise.resolve(response(scores(1400, 256)));
   } });
   const manager = await start(env);
@@ -348,7 +361,8 @@ test('state and submission queues are isolated by the Nextcloud installation URL
   move(first.manager, 3, 1200);
   first.manager.setGameState(state(1200, 128));
   assert.notEqual(first.manager.queueKey, second.manager.queueKey);
-  assert.equal(second.manager.getGameState(), null);
+  assert.equal(second.manager.getGameState().score, 0);
+  assert.deepEqual(second.manager.getGameState().actions, []);
   assert.deepEqual(second.pending(), []);
 });
 
@@ -411,7 +425,7 @@ test('unavailable localStorage uses memory and reports that a reload cannot pres
 test('a late initial GET failure does not replace a successful save status', async () => {
   const initial = deferred();
   const env = load({ fetch(call) {
-    if (call.init.method === 'GET') return initial.promise;
+    if (call.init.method === 'GET' && call.url.endsWith('/scores')) return initial.promise;
     if (call.url.endsWith('/scores')) return Promise.resolve(response(scores(1200)));
   } });
   const manager = await start(env);
@@ -430,8 +444,8 @@ test('invalid saved boards are backed up before obtaining a new server session',
   const malformed = Object.assign(state(1200, 128), {
     session: plain(manager.session), actions: [['move', 3]], grid: { size: 4, cells: [] }
   });
-  assert.equal(await manager.prepareGame(malformed), null);
-  assert.equal(manager.session.token, 'session-2');
+  assert.equal((await manager.prepareGame(malformed)).score, 0);
+  assert.equal(manager.session.token, 'session-1');
   assert.deepEqual(JSON.parse(env.shared.get(manager.local.gameStateKey + '.invalid')), malformed);
   assert.equal(env.pending()[0].session, 'session-1');
 
@@ -491,7 +505,7 @@ test('the actual GameManager board, RNG and action log survive a restore', async
   const saved = env.manager.getGameState();
   assert.equal(env.manager.validSavedState(saved), true);
   assert.ok(saved.actions.length > 0);
-  const sessions = env.calls.filter(call => call.url.endsWith('/games')).length;
+  const sessions = env.calls.filter(call => call.url.endsWith('/games') && call.init.method === 'POST').length;
 
   const restored = vm.runInContext('new GameManager(4, Input, Actuator, Storage)', env.context);
   await settle();
@@ -499,7 +513,7 @@ test('the actual GameManager board, RNG and action log survive a restore', async
   assert.equal(restored.random.state, saved.randomState);
   assert.equal(restored.score, saved.score);
   assert.deepEqual(plain(env.manager.actions), saved.actions);
-  assert.equal(env.calls.filter(call => call.url.endsWith('/games')).length, sessions);
+  assert.equal(env.calls.filter(call => call.url.endsWith('/games') && call.init.method === 'POST').length, sessions);
 });
 
 test('interleaved writes from two tabs preserve proofs of different game sessions', async () => {
@@ -507,7 +521,7 @@ test('interleaved writes from two tabs preserve proofs of different game session
   let interleave = false, second;
   const first = load({ shared,
     fetch(call) {
-      if (call.url.endsWith('/games')) return Promise.resolve(response({ token: 'tab-A', seed: 123, version: 1 }));
+      if (call.url.endsWith('/games') && call.init.method === 'POST') return Promise.resolve(response({ game: game({ token: 'tab-A', seed: 123, version: 1 }) }));
     },
     beforeWrite(key) {
       if (interleave && key.startsWith(first.manager.queueKey + '.job.')) {
@@ -517,7 +531,7 @@ test('interleaved writes from two tabs preserve proofs of different game session
     }
   });
   second = load({ shared, fetch(call) {
-    if (call.url.endsWith('/games')) return Promise.resolve(response({ token: 'tab-B', seed: 456, version: 1 }));
+    if (call.url.endsWith('/games') && call.init.method === 'POST') return Promise.resolve(response({ game: game({ token: 'tab-B', seed: 456, version: 1 }) }));
   } });
   await start(first);
   await start(second);
@@ -632,4 +646,263 @@ test('ACK of a quota-blocked successor clears its durable prefix without resubmi
   assert.equal(manager.queueDirty, false);
   await env.advance(60000);
   assert.equal(env.scorePosts().length, 1);
+});
+
+const session = token => ({ token, seed: 123, version: 1 });
+const localGame = server => Object.assign({}, plain(server.state), {
+  session: plain(server.session), actions: plain(server.actions), revision: server.revision
+});
+const activePuts = env => env.calls.filter(call => call.url.endsWith('/games') && call.init.method === 'PUT');
+
+test('startup uses the canonical server board including RNG, bonuses and undo snapshot', async () => {
+  const board = Object.assign(state(48, 16, 123456), { bonuses: { undo: 1, swap: 0, remove: 2 }, previous: state(32, 16, 9) });
+  const canonical = game(session('shared'), [['move', 3], ['move', 0]], 7, board);
+  const env = load({ serverGame: canonical });
+  const older = localGame(game(session('shared'), [['move', 3]], 2, state(32, 8)));
+  const restored = await env.manager.prepareGame(older);
+  assert.equal(restored.randomState, 123456);
+  assert.deepEqual(restored.bonuses, board.bonuses);
+  assert.deepEqual(restored.previous, board.previous);
+  assert.equal(restored.revision, 7);
+  assert.deepEqual(plain(env.manager.actions), canonical.actions);
+  assert.equal(env.manager.gameDirty, false);
+  assert.equal(env.calls.filter(call => call.url.endsWith('/games') && call.init.method === 'POST').length, 0);
+
+  const corrupted = Object.assign(localGame(canonical), { score: 9999, randomState: 55 });
+  assert.equal((await env.manager.prepareGame(corrupted)).score, 48, 'equal histories use the server board');
+});
+
+test('a strictly newer local history keeps its board and adopts the server revision before saving', async () => {
+  const canonical = game(session('shared'), [['move', 3]], 4, state(8, 4));
+  const env = load({ serverGame: canonical });
+  const newer = localGame(game(session('shared'), [['move', 3], ['move', 0]], 2, state(24, 8, 777)));
+  const restored = await env.manager.prepareGame(newer);
+  assert.equal(restored.score, 24);
+  assert.equal(restored.randomState, 777);
+  assert.equal(env.manager.revision, 4);
+  await env.advance(0);
+  assert.deepEqual(activePuts(env)[0].body, { session: 'shared', actions: newer.actions, revision: 4 });
+  assert.equal(env.manager.revision, 5);
+  assert.equal(env.manager.getGameState().revision, 5);
+});
+
+test('all actions below the personal best sync periodically during continuous play', async () => {
+  const env = load({ best: 20000, bestTile: 512 });
+  const manager = await start(env);
+  for (let i = 0; i < 5; i++) {
+    move(manager, i % 4, i * 4, 8);
+    manager.setGameState(state(i * 4, 8, 100 + i));
+    await env.advance(200);
+  }
+  assert.equal(env.scorePosts().length, 0);
+  assert.equal(activePuts(env).length, 1, 'continuous actions must not postpone the first save indefinitely');
+  assert.equal(activePuts(env)[0].body.actions.length, 5);
+  assert.equal(manager.gameDirty, false);
+  assert.ok(env.statuses.every(status => !status.message.includes('Saving') && !status.message.includes('saved.')));
+});
+
+test('CAS conflict rebases a compatible local tail without dropping any action', async () => {
+  const store = { game: game(session('shared'), [['move', 3]], 1, state(8, 4)) };
+  let puts = 0;
+  const env = load({ gameStore: store, fetch(call) {
+    if (call.init.method === 'PUT' && ++puts === 1) {
+      store.game = game(session('shared'), [['move', 3], ['move', 0]], 2, state(16, 8));
+      return Promise.resolve(response({ message: 'Conflict', game: store.game }, 409));
+    }
+  } });
+  const local = localGame(game(session('shared'), [['move', 3], ['move', 0], ['move', 1]], 1, state(32, 8, 999)));
+  await env.manager.prepareGame(local);
+  const changes = [];
+  env.manager.onGameChange((board, message) => changes.push({ board, message }));
+  await env.manager.flushGame();
+  assert.equal(env.manager.actions.length, 3);
+  assert.equal(env.manager.revision, 2);
+  assert.equal(env.manager.activeState.randomState, 999);
+  assert.equal(changes.length, 0);
+  await env.advance(0);
+  assert.equal(activePuts(env).length, 2);
+  assert.equal(activePuts(env)[1].body.revision, 2);
+  assert.deepEqual(activePuts(env)[1].body.actions, local.actions);
+  assert.equal(env.manager.gameDirty, false);
+});
+
+test('divergent conflict restores the authoritative game but preserves the old score proof', async () => {
+  const store = { game: game(session('shared'), [['move', 3]], 1, state(1200, 128)) };
+  const env = load({ gameStore: store, fetch(call) {
+    if (call.init.method === 'PUT') return Promise.resolve(response({ message: 'Conflict', game: store.game }, 409));
+  } });
+  await env.manager.prepareGame(localGame(store.game));
+  move(env.manager, 0, 1400, 256);
+  env.manager.setGameState(state(1400, 256, 111));
+  store.game = game(session('shared'), [['move', 3], ['move', 1]], 2, state(1300, 128, 222));
+  const changes = [];
+  env.manager.onGameChange((board, message) => {
+    assert.equal(env.manager.revision, 2);
+    changes.push({ board, message });
+  });
+  await env.manager.flushGame();
+  assert.equal(changes.length, 1);
+  assert.match(changes[0].message, /changed in another browser/);
+  assert.equal(changes[0].board.randomState, 222);
+  assert.deepEqual(plain(env.manager.actions), store.game.actions);
+  assert.deepEqual(env.pending()[0].actions, [['move', 3], ['move', 0]]);
+  assert.equal(JSON.parse(env.shared.get(env.manager.local.gameStateKey + '.superseded')).score, 1400);
+});
+
+test('focus refresh loads a newer server history and keeps a compatible unsent local tail', async () => {
+  const store = { game: game(session('shared'), [['move', 3]], 1, state(8, 4)) };
+  const env = load({ gameStore: store });
+  await env.manager.prepareGame(null);
+  const changes = [];
+  env.manager.onGameChange((board, message) => changes.push({ board, message }));
+  store.game = game(session('shared'), [['move', 3], ['move', 0]], 2, state(16, 8, 222));
+  env.emitWindow('focus');
+  await settle();
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0].message, '');
+  assert.equal(env.manager.activeState.randomState, 222);
+  move(env.manager, 1, 24, 8);
+  env.manager.setGameState(state(24, 8, 333));
+  await env.manager.refreshGame();
+  assert.equal(env.manager.actions.length, 3);
+  assert.equal(env.manager.activeState.randomState, 333);
+  assert.equal(changes.length, 1);
+});
+
+test('an old PUT response cannot restore the game replaced by an explicit restart', async () => {
+  const old = deferred();
+  const env = load({ fetch(call) { if (call.init.method === 'PUT') return old.promise; } });
+  const manager = await start(env);
+  const oldSession = plain(manager.session);
+  move(manager, 3, 8, 4);
+  manager.setGameState(state(8, 4));
+  const pending = manager.flushGame();
+  await settle();
+  manager.startNewGame();
+  await manager.prepareGame(null);
+  assert.notEqual(manager.session.token, oldSession.token);
+  const replacement = manager.session.token;
+  old.resolve(response({ game: game(oldSession, [['move', 3]], 1, state(8, 4)) }));
+  await pending;
+  assert.equal(manager.session.token, replacement);
+  assert.equal(manager.actions.length, 0);
+  assert.equal(manager.gamePaused, false);
+});
+
+test('a stale conflict refresh failure cannot pause a newly started game', async () => {
+  const conflictRead = deferred();
+  let reads = 0;
+  const env = load({ fetch(call) {
+    if (call.url.endsWith('/games') && call.init.method === 'GET' && ++reads === 2) return conflictRead.promise;
+    if (call.init.method === 'PUT') return Promise.resolve(response({ message: 'Conflict', game: null }, 409));
+  } });
+  const manager = await start(env);
+  move(manager, 3, 8, 4);
+  const pending = manager.flushGame();
+  await settle();
+  manager.startNewGame();
+  await manager.prepareGame(null);
+  conflictRead.resolve(response({ message: 'Expired login' }, 403));
+  await pending;
+  assert.equal(manager.gamePaused, false);
+  assert.equal(manager.session.token, 'session-2');
+  assert.ok(!String(env.root.dataset.storageMessage || '').includes('Sign in again'));
+});
+
+test('offline startup retains a valid local board while failed authentication pauses saves', async () => {
+  const local = localGame(game(session('offline'), [['move', 3]], 3, state(1200, 128, 999)));
+  const env = load({ fetch(call) {
+    if (call.url.endsWith('/games')) return Promise.reject(new TypeError('offline'));
+  } });
+  assert.equal((await env.manager.prepareGame(local)).randomState, 999);
+  assert.equal(env.manager.session.token, 'offline');
+  assert.equal(env.manager.actions.length, 1);
+  assert.equal(env.manager.gameDirty, true);
+  const auth = load({ fetch(call) {
+    if (call.url.endsWith('/games')) return Promise.resolve(response({ message: 'CSRF check failed' }, 412));
+  } });
+  assert.equal((await auth.manager.prepareGame(local)).score, 1200);
+  assert.equal(auth.manager.gamePaused, true);
+  await auth.advance(60000);
+  assert.equal(activePuts(auth).length, 0);
+});
+
+test('an expired local adoption obtains a fresh server game and notifies the board', async () => {
+  const env = load({ fetch(call) {
+    if (call.init.method === 'PUT') return Promise.resolve(response({ message: 'Expired game' }, 400));
+  } });
+  const local = localGame(game(session('expired'), [['move', 3]], 0, state(1200, 128)));
+  const changes = [];
+  env.manager.onGameChange((board, message) => changes.push({ board, message }));
+  await env.manager.prepareGame(local);
+  await env.manager.flushGame();
+  assert.equal(env.manager.session.token, 'session-1');
+  assert.equal(env.manager.gamePaused, false);
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0].board.score, 0);
+  assert.equal(JSON.parse(env.shared.get(env.manager.local.gameStateKey + '.superseded')).session.token, 'expired');
+});
+
+test('game over sync retains the terminal board and does not create a replacement game', async () => {
+  const env = load();
+  const manager = await start(env);
+  move(manager, 3, 8, 4);
+  const terminal = Object.assign(state(8, 4), { over: true, bonuses: { undo: 0, swap: 0, remove: 0 } });
+  manager.setGameState(terminal);
+  await manager.clearGameState();
+  await settle();
+  assert.equal(manager.getGameState().over, true);
+  assert.equal(env.gameStore.game.state.over, true);
+  assert.equal(env.calls.filter(call => call.url.endsWith('/games') && call.init.method === 'POST').length, 1);
+});
+
+test('a late GET with no active game cannot reset a newer acknowledged revision', async () => {
+  const oldRead = deferred();
+  let reads = 0;
+  const env = load({ serverGame: game(session('shared')), fetch(call) {
+    if (call.url.endsWith('/games') && call.init.method === 'GET' && ++reads === 2) return oldRead.promise;
+  } });
+  await env.manager.prepareGame(null);
+  const refreshing = env.manager.refreshGame();
+  await settle();
+  move(env.manager, 3, 8, 4);
+  env.manager.setGameState(state(8, 4, 333));
+  await env.manager.flushGame();
+  assert.equal(env.manager.revision, 1);
+  oldRead.resolve(response({ game: null }));
+  await refreshing;
+  assert.equal(env.manager.revision, 1);
+  assert.equal(env.manager.gameDirty, false);
+  await env.advance(1000);
+  assert.equal(activePuts(env).length, 1);
+});
+
+test('an in-flight active snapshot leaves its newer local tail queued without repainting the older board', async () => {
+  const first = deferred();
+  let puts = 0;
+  const env = load({ serverGame: game(session('shared')), fetch(call) {
+    if (call.init.method === 'PUT' && ++puts === 1) return first.promise;
+  } });
+  await env.manager.prepareGame(null);
+  const changes = [];
+  env.manager.onGameChange(board => changes.push(board));
+  move(env.manager, 3, 8, 4);
+  env.manager.setGameState(state(8, 4, 111));
+  const pending = env.manager.flushGame();
+  await settle();
+  move(env.manager, 0, 16, 8);
+  env.manager.setGameState(state(16, 8, 222));
+  assert.equal(env.manager.flushGame(), pending);
+  const accepted = game(session('shared'), [['move', 3]], 1, state(8, 4, 111));
+  env.gameStore.game = accepted;
+  first.resolve(response({ game: accepted }));
+  await pending;
+  assert.equal(env.manager.activeState.randomState, 222);
+  assert.equal(changes.length, 0);
+  assert.equal(env.manager.gameDirty, true);
+  await env.advance(0);
+  assert.deepEqual(activePuts(env)[1].body, { session: 'shared', actions: [['move', 3], ['move', 0]], revision: 1 });
+  assert.equal(env.manager.revision, 2);
+  assert.equal(env.manager.gameDirty, false);
+  assert.equal(changes.length, 0);
 });

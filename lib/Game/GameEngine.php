@@ -80,6 +80,46 @@ final class GameEngine {
 		];
 	}
 
+	/** Browser restoration state derived exclusively from verified actions. */
+	public function savedState(): array {
+		$previous = $this->previous === null ? null : [
+			'grid' => $this->serializeGrid($this->previous['board']),
+			'score' => $this->previous['score'],
+			'moves' => $this->previous['moves'],
+			'won' => $this->previous['won'],
+			'over' => $this->previous['over'],
+		];
+		return [
+			'grid' => $this->serializeGrid($this->board),
+			'score' => $this->score,
+			'over' => $this->over,
+			'won' => $this->won,
+			'keepPlaying' => $this->keepPlaying,
+			'moves' => $this->moves,
+			'maxTile' => $this->bestTileEver,
+			'bonuses' => $this->bonuses,
+			'reached' => (object)$this->reached,
+			'previous' => $previous,
+			'randomState' => $this->rng,
+			'peakScore' => $this->peakScore,
+		];
+	}
+
+	/** Grid.serialize()/Tile.serialize() shape, with columns before rows. */
+	private function serializeGrid(array $board): array {
+		$cells = [];
+		foreach ($board as $x => $column) {
+			$cells[$x] = [];
+			foreach ($column as $y => $value) {
+				$cells[$x][$y] = $value === 0 ? null : [
+					'position' => ['x' => $x, 'y' => $y],
+					'value' => $value,
+				];
+			}
+		}
+		return ['size' => self::SIZE, 'cells' => $cells];
+	}
+
 	private function applyAction(mixed $action): void {
 		if (!is_array($action) || !array_is_list($action) || !isset($action[0]) || !is_string($action[0])) {
 			throw new InvalidArgumentException('Expected an action array');

@@ -397,7 +397,7 @@
   flex: none; }
 @media screen and (max-width: 520px) {
   #tfe {
-    padding: 16px 8px;
+    padding: 16px;
     font-size: 15px; }
   #tfe .game-container {
     --board-padding: 10px;

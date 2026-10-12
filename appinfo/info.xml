@@ -4,8 +4,8 @@
     <id>twentyfortyeight</id>
     <name>2048</name>
     <summary>The 2048 puzzle game with a shared leaderboard</summary>
-    <description><![CDATA[Play 2048 right inside Nextcloud and compete with the other users of your instance. Every user's best score is stored on the server and shown on a shared leaderboard.]]></description>
-    <version>0.2.1</version>
+    <description><![CDATA[Play 2048 right inside Nextcloud and compete with the other users of your instance. Continue the same game in different browsers and devices. Every user's best score is stored on the server and shown on a shared leaderboard.]]></description>
+    <version>0.3.0</version>
     <licence>agpl</licence>
     <author>ndtimofeev</author>
     <namespace>TwentyFortyEight</namespace>

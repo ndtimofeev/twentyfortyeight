@@ -23,6 +23,7 @@ namespace OCP\DB {
 		public const BIGINT = 'bigint';
 		public const INTEGER = 'integer';
 		public const STRING = 'string';
+		public const TEXT = 'text';
 	}
 	interface ISchemaWrapper {
 		public function hasTable(string $name): bool;
@@ -253,7 +254,7 @@ namespace TwentyFortyEightTests {
 						$columns[] = '"' . $column . '" INTEGER PRIMARY KEY AUTOINCREMENT';
 						continue;
 					}
-					$sql = '"' . $column . '" ' . ($type === 'string' ? 'TEXT' : 'INTEGER');
+					$sql = '"' . $column . '" ' . (in_array($type, ['string', 'text'], true) ? 'TEXT' : 'INTEGER');
 					if ($options['notnull'] ?? false) { $sql .= ' NOT NULL'; }
 					if (isset($options['default'])) { $sql .= ' DEFAULT ' . (int)$options['default']; }
 					$columns[] = $sql;
@@ -277,6 +278,7 @@ namespace TwentyFortyEightTests {
 		public function setAppValue(string $app, string $key, string $value): void { $this->values[$app][$key] = $value; }
 	}
 	class Clock implements \OCP\AppFramework\Utility\ITimeFactory {
-		public function getTime(): int { return 1_800_000_000; }
+		public int $now = 1_800_000_000;
+		public function getTime(): int { return $this->now; }
 	}
 }

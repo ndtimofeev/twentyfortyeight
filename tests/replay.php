@@ -169,6 +169,12 @@ namespace {
 	same(true, $issued['seed'] >= 1 && $issued['seed'] <= 0xffffffff, 'Random seed fits unsigned 32 bits');
 	$verified = $sessions->verify('alice', $issued['token'], []);
 	same(json_encode((new GameEngine($issued['seed']))->replay([])), json_encode($verified), 'Valid signature replays the signed seed');
+	same(false, array_key_exists('savedState', $verified), 'Default verification response remains unchanged');
+	$restorable = $sessions->verify('alice', $issued['token'], [], true);
+	same($issued, $restorable['session'], 'Restoration includes verified session metadata');
+	same(json_encode((new GameEngine($issued['seed']))->savedState()), json_encode($restorable['savedState']), 'Verification can return the exact browser restoration state');
+	unset($restorable['savedState'], $restorable['session']);
+	same(json_encode($verified), json_encode($restorable), 'Opt-in restoration leaves replay statistics unchanged');
 	rejects(fn() => $sessions->verify('bob', $issued['token'], []), 'Cannot submit someone else\'s session');
 	rejects(fn() => $sessions->verify('alice', $issued['token'] . 'x', []), 'Tampered signature');
 	rejects(fn() => $sessions->verify('alice', 'not-a-token', []), 'Malformed token');
@@ -210,10 +216,22 @@ namespace {
 		throw new RuntimeException('JavaScript replay fixtures must not be empty');
 	}
 	foreach ($fixtures as $fixture) {
-		$actual = (new GameEngine($fixture['seed']))->replay($fixture['actions']);
+		$engine = new GameEngine($fixture['seed']);
+		$actual = $engine->replay($fixture['actions']);
 		// Decode reached into an array on both sides for JSON object comparison.
 		$actual = json_decode(json_encode($actual, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
 		same($fixture['expected'], $actual, 'JavaScript parity: ' . $fixture['name']);
+		$savedState = json_decode(json_encode($engine->savedState(), JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
+		same($fixture['savedState'], $savedState, 'Browser restoration serialization parity: ' . $fixture['name']);
+		if ($fixture['name'] === 'mixed-undo') {
+			same(null, $savedState['previous'], 'An undone state cannot restore a second undo');
+			same(4, $savedState['peakScore'], 'An undone board preserves the historical peak score');
+			same(4, $savedState['maxTile'], 'An undone board preserves the historical maximum tile');
+		}
+		if ($fixture['name'] === 'mixed-merge') {
+			same($fixtures[0]['savedState']['grid'], $savedState['previous']['grid'], 'Serialized undo snapshot restores the preceding browser grid');
+			same(0, $savedState['previous']['score'], 'Undo snapshot preserves the preceding score');
+		}
 	}
 	echo 'Replay checks passed: ' . $checks . "\n";
 }

@@ -9,9 +9,10 @@ of the instance.
 * The leaderboard shows 20 users and the current user's place. Equal scores
   share a place: `1, 1, 3`. Time and user ID only determine display order within
   a tie.
-* The running game is kept in the browser's `localStorage` (per Nextcloud user),
-  so a reload doesn't lose it. Storage is also separated by the installation's
-  URL. Games do not sync between devices.
+* Each Nextcloud user has one active game stored on the server, including its
+  board, score, bonuses, Undo snapshot and random state. Opening the app in
+  another browser or device resumes that game. Browser `localStorage`, separated
+  by user and installation URL, also keeps a copy for offline play.
 * **Bonuses** (buttons under the board, two charges each, never more than two):
   * *Undo* takes back the last move (one level); one more charge when the first
     128 tile of a game is made.
@@ -40,20 +41,38 @@ and computes the score, tile record and move count itself. Client-reported
 scores and board contents are never used for the leaderboard. Undo retains a
 previously achieved record, but does not restore bonus charges or RNG state.
 
-`POST /api/games` returns `{token, seed, version}`. `POST /api/scores` accepts
+`GET /api/games` returns `{game: null}` or the active game. `POST /api/games`
+ensures an active game exists; `{restart: true}` explicitly starts a new one.
+The response contains `{game: {session: {token, seed, version}, actions,
+revision, state}}`. `PUT /api/games` accepts `{session: token, actions, revision}`
+and saves a verified extension of the active history. Its state is reconstructed
+on the server, including Undo and the next random tile. Updates use a revision
+check: a stale or different history gets HTTP 409 with the current game, so
+concurrent browsers cannot overwrite each other's progress.
+
+`POST /api/scores` accepts
 `{session: token, actions: [...]}`; actions are `['move', direction]`, `['undo']`,
 `['swap', x1, y1, x2, y2]`, `['remove', value]`, or `['continue']`.
-Both routes require Nextcloud authentication and CSRF protection and are rate
+The routes require Nextcloud authentication and CSRF protection and are rate
 limited. A game token lasts 90 days; a game is limited to 50,000 successful
-actions. Deleting an account revokes its tokens and removes its records.
+actions. Deleting an account revokes its tokens and removes its records and
+active game.
 
 A connection is required to start a new verified game. An existing saved game
-can continue offline. Pending submissions are kept separately from the board,
+can continue offline. Successful actions are saved after a short debounce,
+including moves that do not improve a personal record. The active game is
+refreshed when returning to the app. Compatible offline progress is uploaded;
+if another browser has started a new game or followed a different history, the
+server's current game is loaded. The older history still has its own score
+submission and cannot replace the active game.
+
+Pending submissions are kept separately from the board,
 survive restart/reload, and retry after network failures. Tile records are sent
 even if the score is below the personal record. Rejected submissions remain
 saved locally for diagnosis; save status messages are not shown in the game
-interface. Browser storage must remain available; clearing it discards the unfinished game and pending
-submissions. If browser storage is full, pending results can only survive while
+interface. Clearing browser storage discards unsent offline progress and pending
+submissions; the last server-saved game can still be restored. If browser
+storage is full, pending results can only survive while
 the page remains open until a successful submission.
 
 Verification proves that a result is achievable with the issued seed and the
@@ -67,6 +86,10 @@ cannot be verified retrospectively: they remain archived in
 `twentyfortyeight_scores` and are not copied into the new leaderboard. Old
 browser saves remain under their original keys; start a new game to join the
 verified leaderboard. Installation migrations do not delete the legacy data.
+
+Version 0.3.0 adds server storage for active games. An existing signed browser
+game is adopted when the account has no active server game yet; verified
+leaderboard records are retained.
 
 ## Layout
 
@@ -96,8 +119,8 @@ The game is [gabrielecirulli/2048](https://github.com/gabrielecirulli/2048)
   charges, undo snapshot) live at the bottom and are saved in `serialize()`.
 * `application.js`: uses `ServerStorageManager`; game initialization waits for a
   server-issued session. `seeded_random.js` provides deterministic random tiles.
-* New: `server_storage_manager.js` (best score from/to the server, debounced POST,
-  game state and persistent submission queue in localStorage), `leaderboard.js`,
+* New: `server_storage_manager.js` (server records, shared active game with
+  revision checks, offline state and persistent submission queue), `leaderboard.js`,
   and `bonus_ui.js` (bonus buttons, mouse/touch/keyboard tile picking).
 * `css/main.css`: every selector is prefixed with `#tfe`, the page-wide `html`/`body`
   rules and the bundled Clear Sans font are dropped (Nextcloud's font is used),
@@ -107,7 +130,8 @@ The game is [gabrielecirulli/2048](https://github.com/gabrielecirulli/2048)
 * The page shows the current score above the board, New Game, the bonus buttons
   and the leaderboard. The title, best-score box, intro, "How to play" and credits
   paragraphs are removed (the copyright notice stays in `LICENSE-2048.txt`).
-  On mobile the square board fills the available width and the leaderboard
+  On mobile the square board fills the available width with 16px side margins;
+  the leaderboard
   follows below it. Save status messages are kept out of the game interface;
   the best score is still tracked and sent to the server.
 
@@ -147,7 +171,8 @@ CI runs syntax and unit checks, builds an installable archive, and exercises
 the application on Nextcloud 31, 32, 33 and 34. Integration tests use temporary
 users and containers and do not connect to an existing instance.
 The Nextcloud 34 job also uses Playwright/Chromium to check real browser startup,
-keyboard bonuses, seeded restoration and restart. Playwright is only a test
+keyboard bonuses, seeded restoration, shared games across browser contexts and
+restart. Playwright is only a test
 tool and is not included in the application archive.
 
 ## License

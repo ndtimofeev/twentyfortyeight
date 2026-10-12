@@ -32,6 +32,14 @@ function load(savedState, options = {}) {
 		clearGameState() { stored.state = null }
 	}
 	if (options.prepareGame) ctx.Storage.prototype.prepareGame = options.prepareGame
+	if (options.sharedGame) {
+		ctx.Storage.prototype.onGameChange = function (callback) { stored.remoteChange = callback }
+		ctx.Storage.prototype.startNewGame = function () {
+			stored.restarts = (stored.restarts || 0) + 1
+			stored.state = null
+		}
+		ctx.BonusUI.prototype.cancel = function () { stored.selectionCancelled = true }
+	}
 	for (const file of ['grid', 'tile', 'seeded_random', 'game_manager']) {
 		vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', file + '.js'), 'utf8'), ctx)
 	}
@@ -375,6 +383,43 @@ test('the saved game is cleared on game over once undo is not possible', () => {
 	assert.strictEqual(stored.state, null)
 })
 
+test('a shared game retains its terminal board for other browsers', () => {
+	const env = load(null, { sharedGame: true })
+	env.game.bonuses.undo = 0
+	setBoard(env, ONE_MOVE_FROM_STUCK)
+	env.game.move(1)
+	assert.ok(env.game.over)
+	assert.strictEqual(env.stored.state.over, true)
+})
+
+test('remote restoration replaces the board and preserves Undo and the random stream', () => {
+	const source = load(null, { seed: 42 })
+	for (const direction of [0, 1, 2, 3]) source.game.move(direction)
+	const target = load(null, { seed: 42, sharedGame: true })
+	target.stored.remoteChange(source.stored.state)
+	assert.deepStrictEqual(board(target.game), board(source.game))
+	assert.strictEqual(target.game.score, source.game.score)
+	assert.strictEqual(target.game.random.state, source.game.random.state)
+	assert.strictEqual(target.stored.selectionCancelled, true)
+	assert.ok(target.game.undo())
+	assert.ok(source.game.undo())
+	assert.deepStrictEqual(board(target.game), board(source.game))
+	for (const direction of [2, 1, 0]) {
+		target.game.move(direction)
+		source.game.move(direction)
+	}
+	assert.deepStrictEqual(board(target.game), board(source.game))
+	assert.strictEqual(target.game.random.state, source.game.random.state)
+})
+
+test('New Game explicitly replaces a shared game instead of resuming it', () => {
+	const env = load(null, { seed: 42, sharedGame: true })
+	env.game.move(0)
+	env.game.restart()
+	assert.strictEqual(env.stored.restarts, 1)
+	assert.strictEqual(env.game.moves, 0)
+})
+
 test('the best tile survives Remove taking it off the board', () => {
 	const env = load()
 	const { game } = env
@@ -627,5 +672,14 @@ test('golden replay fixtures match the real browser rules, including a genuine 2
 			assert.strictEqual(env.stored.actions.length, length + 1, fixture.name + ': recorded action must succeed')
 		}
 		assert.deepStrictEqual(expected(env), fixture.expected, fixture.name)
+		const serialized = game => JSON.parse(JSON.stringify({ ...game.serialize(), peakScore: fixture.savedState.peakScore }))
+		assert.deepStrictEqual(serialized(env.game), fixture.savedState, fixture.name + ': complete server restoration state')
+		const resumed = createGame(fixture.seed, fixture.savedState, {
+			actions: JSON.parse(JSON.stringify(fixture.actions)),
+			peakScore: fixture.savedState.peakScore,
+			movesAtPeakScore: fixture.expected.movesAtPeakScore,
+			bestTileEver: fixture.expected.bestTileEver
+		})
+		assert.deepStrictEqual(serialized(resumed.game), fixture.savedState, fixture.name + ': restoration round trip')
 	}
 })

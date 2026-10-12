@@ -69,7 +69,7 @@ class Client:
         assert parser.token, "App page did not expose a CSRF token"
         self.token = parser.token
 
-    def request(self, path, payload=None, expected=200, csrf=True):
+    def request(self, path, payload=None, expected=200, csrf=True, method=None):
         headers = {"Accept": "application/json", "X-Requested-With": "XMLHttpRequest", "Origin": self.base}
         if csrf and self.token:
             headers["requesttoken"] = self.token
@@ -78,7 +78,7 @@ class Client:
             data = json.dumps(payload).encode()
             headers["Content-Type"] = "application/json"
         request = urllib.request.Request(self.base + "/index.php/apps/twentyfortyeight" + path,
-                                         data=data, headers=headers)
+                                         data=data, headers=headers, method=method)
         try:
             response = self.api.open(request, timeout=30)
         except urllib.error.HTTPError as error:
@@ -100,9 +100,15 @@ def main():
     one.login("smoke-one", password)
     two.login("smoke-two", password)
     assert one.request("/api/scores")["me"] is None
+    assert one.request("/api/games")["game"] is None
+    assert two.request("/api/games")["game"] is None
     one.request("/api/games", {}, expected=412, csrf=False)
 
-    session = one.request("/api/games", {})
+    initial = one.request("/api/games", {})["game"]
+    assert one.request("/api/games", {})["game"] == initial, "Opening the game restarted the active party"
+    assert one.request("/api/games")["game"] == initial
+    assert isinstance(initial["revision"], int) and initial["actions"] == []
+    session = initial["session"]
     assert session["version"] == 1 and 1 <= session["seed"] <= 0xFFFFFFFF
     assert isinstance(session["token"], str) and "." in session["token"]
     forged = {"session": "", "actions": [], "score": 999999, "bestTile": 131072, "moves": 1}
@@ -119,7 +125,9 @@ def main():
     two.request("/api/scores", {"session": token, "actions": []}, expected=400)
     one.request("/api/scores", {"session": token, "actions": [["invented-action"]]}, expected=400)
 
-    second = two.request("/api/games", {})
+    second = two.request("/api/games", {})["game"]["session"]
+    assert second["token"] != token
+    assert one.request("/api/games")["game"] == initial, "Another user's game changed this user's board"
     result = two.request("/api/scores", {"session": second["token"], "actions": []})
     assert len(result["leaderboard"]) == 2
     assert all(entry["rank"] == 1 and entry["score"] == 0 for entry in result["leaderboard"])
@@ -138,7 +146,51 @@ def main():
     # Repeating a valid submission is harmless, and an older prefix cannot lower records.
     assert one.request("/api/scores", payload)["me"] == result["me"]
     assert one.request("/api/scores", empty)["me"] == result["me"]
-    print("Login, CSRF, signed sessions, replay, rejected forgery, shared ranks and record preservation passed.")
+
+    # Persist a verified history through an optimistic, per-user game revision.
+    two.request("/api/games", {
+        "session": token, "actions": [], "revision": initial["revision"],
+    }, expected=400, method="PUT")
+    assert two.request("/api/games")["game"]["session"] == second
+    prefix = {"session": token, "actions": proof["actions"][:1], "revision": initial["revision"]}
+    partial = one.request("/api/games", prefix, method="PUT")["game"]
+    assert partial["actions"] == prefix["actions"] and partial["revision"] > initial["revision"]
+    stale = {**payload, "revision": initial["revision"]}
+    assert one.request("/api/games", stale, expected=409, method="PUT")["game"] == partial
+    active = one.request("/api/games", {**payload, "revision": partial["revision"]}, method="PUT")["game"]
+    assert active["actions"] == proof["actions"] and active["session"] == session
+    assert active["state"]["score"] == proof["expected"]["score"]
+    assert active["state"]["maxTile"] == proof["expected"]["bestTile"]
+    assert 1 <= active["state"]["randomState"] <= 0xFFFFFFFF
+    for field in ("grid", "bonuses", "reached", "previous", "over", "won", "keepPlaying", "moves"):
+        assert field in active["state"], f"The saved board omitted {field}"
+    assert one.request("/api/games")["game"] == active
+    assert one.request("/api/games", {})["game"] == active
+    assert one.request("/api/games", {**payload, "revision": initial["revision"]}, method="PUT")["game"] == active
+
+    # Use a different legal opening move to prove that a divergent history is rejected.
+    cells = initial["state"]["grid"]["cells"]
+    vectors = ((0, -1), (1, 0), (0, 1), (-1, 0))
+    divergent_direction = None
+    for direction, (dx, dy) in enumerate(vectors):
+        if direction == proof["actions"][0][1]:
+            continue
+        if any(cells[x][y] and 0 <= x + dx < 4 and 0 <= y + dy < 4
+               and (not cells[x + dx][y + dy] or cells[x + dx][y + dy]["value"] == cells[x][y]["value"])
+               for x in range(4) for y in range(4)):
+            divergent_direction = direction
+            break
+    assert divergent_direction is not None
+    divergent = {"session": token, "actions": [["move", divergent_direction]], "revision": active["revision"]}
+    assert one.request("/api/games", divergent, expected=409, method="PUT")["game"] == active
+    assert one.request("/api/games")["game"] == active
+
+    restarted = one.request("/api/games", {"restart": True})["game"]
+    assert restarted["session"]["token"] != token and restarted["actions"] == []
+    assert restarted["state"]["score"] == 0
+    assert one.request("/api/games", {**payload, "revision": active["revision"]}, expected=409, method="PUT")["game"] == restarted
+    assert two.request("/api/games")["game"]["session"] == second
+    print("Login, CSRF, signed replay, rejected forgery, shared ranks, active game restore, user isolation and optimistic conflicts passed.")
 
 
 if __name__ == "__main__":

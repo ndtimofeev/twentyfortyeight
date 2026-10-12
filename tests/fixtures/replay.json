@@ -28,6 +28,49 @@
         "canUndo": false,
         "rng": 307599695
       }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            {
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "value": 2
+            },
+            null,
+            {
+              "position": {
+                "x": 0,
+                "y": 2
+              },
+              "value": 2
+            },
+            null
+          ],
+          [null,null,null,null],
+          [null,null,null,null],
+          [null,null,null,null]
+        ]
+      },
+      "score": 0,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 0,
+      "maxTile": 2,
+      "bonuses": {
+        "undo": 2,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {},
+      "previous": null,
+      "randomState": 307599695,
+      "peakScore": 0
     }
   },
   {
@@ -68,6 +111,126 @@
         "canUndo": true,
         "rng": 4283899417
       }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [null,null,null,null],
+          [null,null,null,null],
+          [
+            null,
+            null,
+            null,
+            {
+              "position": {
+                "x": 2,
+                "y": 3
+              },
+              "value": 2
+            }
+          ],
+          [
+            {
+              "position": {
+                "x": 3,
+                "y": 0
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 1
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 2
+              },
+              "value": 8
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 3
+              },
+              "value": 4
+            }
+          ]
+        ]
+      },
+      "score": 24,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 8,
+      "maxTile": 8,
+      "bonuses": {
+        "undo": 2,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {},
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              null,
+              {
+                "position": {
+                  "x": 0,
+                  "y": 1
+                },
+                "value": 4
+              },
+              {
+                "position": {
+                  "x": 0,
+                  "y": 2
+                },
+                "value": 8
+              },
+              {
+                "position": {
+                  "x": 0,
+                  "y": 3
+                },
+                "value": 2
+              }
+            ],
+            [null,null,null,null],
+            [null,null,null,null],
+            [
+              {
+                "position": {
+                  "x": 3,
+                  "y": 0
+                },
+                "value": 2
+              },
+              null,
+              null,
+              {
+                "position": {
+                  "x": 3,
+                  "y": 3
+                },
+                "value": 2
+              }
+            ]
+          ]
+        },
+        "score": 20,
+        "moves": 7,
+        "won": false,
+        "over": false
+      },
+      "randomState": 4283899417,
+      "peakScore": 24
     }
   },
   {
@@ -109,6 +272,132 @@
         "canUndo": true,
         "rng": 3822316985
       }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [null,null,null,null],
+          [null,null,null,null],
+          [
+            {
+              "position": {
+                "x": 2,
+                "y": 0
+              },
+              "value": 2
+            },
+            null,
+            {
+              "position": {
+                "x": 2,
+                "y": 2
+              },
+              "value": 2
+            },
+            null
+          ],
+          [
+            {
+              "position": {
+                "x": 3,
+                "y": 0
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 1
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 2
+              },
+              "value": 8
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 3
+              },
+              "value": 4
+            }
+          ]
+        ]
+      },
+      "score": 24,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 9,
+      "maxTile": 8,
+      "bonuses": {
+        "undo": 2,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {},
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [null,null,null,null],
+            [null,null,null,null],
+            [
+              null,
+              null,
+              null,
+              {
+                "position": {
+                  "x": 2,
+                  "y": 3
+                },
+                "value": 2
+              }
+            ],
+            [
+              {
+                "position": {
+                  "x": 3,
+                  "y": 0
+                },
+                "value": 2
+              },
+              {
+                "position": {
+                  "x": 3,
+                  "y": 1
+                },
+                "value": 4
+              },
+              {
+                "position": {
+                  "x": 3,
+                  "y": 2
+                },
+                "value": 8
+              },
+              {
+                "position": {
+                  "x": 3,
+                  "y": 3
+                },
+                "value": 4
+              }
+            ]
+          ]
+        },
+        "score": 24,
+        "moves": 8,
+        "won": false,
+        "over": false
+      },
+      "randomState": 3822316985,
+      "peakScore": 24
     }
   },
   {
@@ -140,6 +429,54 @@
         "canUndo": false,
         "rng": 3648046016
       }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [null,null,null,null],
+          [null,null,null,null],
+          [
+            null,
+            null,
+            {
+              "position": {
+                "x": 2,
+                "y": 2
+              },
+              "value": 2
+            },
+            null
+          ],
+          [
+            null,
+            {
+              "position": {
+                "x": 3,
+                "y": 1
+              },
+              "value": 2
+            },
+            null,
+            null
+          ]
+        ]
+      },
+      "score": 0,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 0,
+      "maxTile": 2,
+      "bonuses": {
+        "undo": 2,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {},
+      "previous": null,
+      "randomState": 3648046016,
+      "peakScore": 0
     }
   },
   {
@@ -180,6 +517,153 @@
         "canUndo": true,
         "rng": 2713533522
       }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [null,null,null,null],
+          [
+            null,
+            null,
+            {
+              "position": {
+                "x": 1,
+                "y": 2
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 1,
+                "y": 3
+              },
+              "value": 2
+            }
+          ],
+          [
+            null,
+            null,
+            null,
+            {
+              "position": {
+                "x": 2,
+                "y": 3
+              },
+              "value": 8
+            }
+          ],
+          [
+            {
+              "position": {
+                "x": 3,
+                "y": 0
+              },
+              "value": 2
+            },
+            null,
+            {
+              "position": {
+                "x": 3,
+                "y": 2
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 3
+              },
+              "value": 2
+            }
+          ]
+        ]
+      },
+      "score": 20,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 8,
+      "maxTile": 8,
+      "bonuses": {
+        "undo": 2,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {},
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "value": 2
+              },
+              null,
+              {
+                "position": {
+                  "x": 0,
+                  "y": 2
+                },
+                "value": 4
+              },
+              {
+                "position": {
+                  "x": 0,
+                  "y": 3
+                },
+                "value": 2
+              }
+            ],
+            [
+              null,
+              null,
+              null,
+              {
+                "position": {
+                  "x": 1,
+                  "y": 3
+                },
+                "value": 4
+              }
+            ],
+            [
+              null,
+              null,
+              null,
+              {
+                "position": {
+                  "x": 2,
+                  "y": 3
+                },
+                "value": 4
+              }
+            ],
+            [
+              null,
+              null,
+              null,
+              {
+                "position": {
+                  "x": 3,
+                  "y": 3
+                },
+                "value": 2
+              }
+            ]
+          ]
+        },
+        "score": 12,
+        "moves": 7,
+        "won": false,
+        "over": false
+      },
+      "randomState": 2713533522,
+      "peakScore": 20
     }
   },
   {
@@ -221,6 +705,148 @@
         "canUndo": true,
         "rng": 2427335427
       }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [null,null,null,null],
+          [
+            {
+              "position": {
+                "x": 1,
+                "y": 0
+              },
+              "value": 4
+            },
+            null,
+            null,
+            {
+              "position": {
+                "x": 1,
+                "y": 3
+              },
+              "value": 2
+            }
+          ],
+          [
+            {
+              "position": {
+                "x": 2,
+                "y": 0
+              },
+              "value": 8
+            },
+            null,
+            null,
+            null
+          ],
+          [
+            {
+              "position": {
+                "x": 3,
+                "y": 0
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 1
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 2
+              },
+              "value": 2
+            },
+            null
+          ]
+        ]
+      },
+      "score": 24,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 9,
+      "maxTile": 8,
+      "bonuses": {
+        "undo": 2,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {},
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [null,null,null,null],
+            [
+              null,
+              null,
+              {
+                "position": {
+                  "x": 1,
+                  "y": 2
+                },
+                "value": 2
+              },
+              {
+                "position": {
+                  "x": 1,
+                  "y": 3
+                },
+                "value": 2
+              }
+            ],
+            [
+              null,
+              null,
+              null,
+              {
+                "position": {
+                  "x": 2,
+                  "y": 3
+                },
+                "value": 8
+              }
+            ],
+            [
+              {
+                "position": {
+                  "x": 3,
+                  "y": 0
+                },
+                "value": 2
+              },
+              null,
+              {
+                "position": {
+                  "x": 3,
+                  "y": 2
+                },
+                "value": 4
+              },
+              {
+                "position": {
+                  "x": 3,
+                  "y": 3
+                },
+                "value": 2
+              }
+            ]
+          ]
+        },
+        "score": 20,
+        "moves": 8,
+        "won": false,
+        "over": false
+      },
+      "randomState": 2427335427,
+      "peakScore": 24
     }
   },
   {
@@ -252,6 +878,49 @@
         "canUndo": false,
         "rng": 4056713434
       }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [null,null,null,null],
+          [null,null,null,null],
+          [null,null,null,null],
+          [
+            null,
+            null,
+            {
+              "position": {
+                "x": 3,
+                "y": 2
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 3
+              },
+              "value": 2
+            }
+          ]
+        ]
+      },
+      "score": 0,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 0,
+      "maxTile": 2,
+      "bonuses": {
+        "undo": 2,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {},
+      "previous": null,
+      "randomState": 4056713434,
+      "peakScore": 0
     }
   },
   {
@@ -291,6 +960,131 @@
         "canUndo": true,
         "rng": 2963679066
       }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [null,null,null,null],
+          [null,null,null,null],
+          [
+            {
+              "position": {
+                "x": 2,
+                "y": 0
+              },
+              "value": 2
+            },
+            null,
+            null,
+            {
+              "position": {
+                "x": 2,
+                "y": 3
+              },
+              "value": 2
+            }
+          ],
+          [
+            null,
+            {
+              "position": {
+                "x": 3,
+                "y": 1
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 2
+              },
+              "value": 8
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 3
+              },
+              "value": 4
+            }
+          ]
+        ]
+      },
+      "score": 20,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 7,
+      "maxTile": 8,
+      "bonuses": {
+        "undo": 2,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {},
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              null,
+              {
+                "position": {
+                  "x": 0,
+                  "y": 1
+                },
+                "value": 2
+              },
+              {
+                "position": {
+                  "x": 0,
+                  "y": 2
+                },
+                "value": 8
+              },
+              {
+                "position": {
+                  "x": 0,
+                  "y": 3
+                },
+                "value": 2
+              }
+            ],
+            [
+              null,
+              null,
+              null,
+              {
+                "position": {
+                  "x": 1,
+                  "y": 3
+                },
+                "value": 2
+              }
+            ],
+            [null,null,null,null],
+            [
+              null,
+              null,
+              null,
+              {
+                "position": {
+                  "x": 3,
+                  "y": 3
+                },
+                "value": 2
+              }
+            ]
+          ]
+        },
+        "score": 16,
+        "moves": 6,
+        "won": false,
+        "over": false
+      },
+      "randomState": 2963679066,
+      "peakScore": 20
     }
   },
   {
@@ -331,6 +1125,131 @@
         "canUndo": true,
         "rng": 1419052832
       }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            null,
+            null,
+            null,
+            {
+              "position": {
+                "x": 0,
+                "y": 3
+              },
+              "value": 4
+            }
+          ],
+          [null,null,null,null],
+          [
+            {
+              "position": {
+                "x": 2,
+                "y": 0
+              },
+              "value": 4
+            },
+            null,
+            null,
+            null
+          ],
+          [
+            {
+              "position": {
+                "x": 3,
+                "y": 0
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 1
+              },
+              "value": 8
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 2
+              },
+              "value": 4
+            },
+            null
+          ]
+        ]
+      },
+      "score": 24,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 8,
+      "maxTile": 8,
+      "bonuses": {
+        "undo": 2,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {},
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [null,null,null,null],
+            [null,null,null,null],
+            [
+              {
+                "position": {
+                  "x": 2,
+                  "y": 0
+                },
+                "value": 2
+              },
+              null,
+              null,
+              {
+                "position": {
+                  "x": 2,
+                  "y": 3
+                },
+                "value": 2
+              }
+            ],
+            [
+              null,
+              {
+                "position": {
+                  "x": 3,
+                  "y": 1
+                },
+                "value": 2
+              },
+              {
+                "position": {
+                  "x": 3,
+                  "y": 2
+                },
+                "value": 8
+              },
+              {
+                "position": {
+                  "x": 3,
+                  "y": 3
+                },
+                "value": 4
+              }
+            ]
+          ]
+        },
+        "score": 20,
+        "moves": 7,
+        "won": false,
+        "over": false
+      },
+      "randomState": 1419052832,
+      "peakScore": 24
     }
   },
   {
@@ -364,6 +1283,80 @@
         "canUndo": true,
         "rng": 745495504
       }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            {
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "value": 4
+            },
+            null,
+            null,
+            {
+              "position": {
+                "x": 0,
+                "y": 3
+              },
+              "value": 2
+            }
+          ],
+          [null,null,null,null],
+          [null,null,null,null],
+          [null,null,null,null]
+        ]
+      },
+      "score": 4,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 1,
+      "maxTile": 4,
+      "bonuses": {
+        "undo": 2,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {},
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "value": 2
+              },
+              null,
+              {
+                "position": {
+                  "x": 0,
+                  "y": 2
+                },
+                "value": 2
+              },
+              null
+            ],
+            [null,null,null,null],
+            [null,null,null,null],
+            [null,null,null,null]
+          ]
+        },
+        "score": 0,
+        "moves": 0,
+        "won": false,
+        "over": false
+      },
+      "randomState": 745495504,
+      "peakScore": 4
     }
   },
   {
@@ -398,6 +1391,49 @@
         "canUndo": false,
         "rng": 745495504
       }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            {
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "value": 2
+            },
+            null,
+            {
+              "position": {
+                "x": 0,
+                "y": 2
+              },
+              "value": 2
+            },
+            null
+          ],
+          [null,null,null,null],
+          [null,null,null,null],
+          [null,null,null,null]
+        ]
+      },
+      "score": 0,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 0,
+      "maxTile": 4,
+      "bonuses": {
+        "undo": 1,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {},
+      "previous": null,
+      "randomState": 745495504,
+      "peakScore": 4
     }
   },
   {
@@ -433,6 +1469,80 @@
         "canUndo": true,
         "rng": 435756210
       }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            {
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "value": 4
+            },
+            null,
+            {
+              "position": {
+                "x": 0,
+                "y": 2
+              },
+              "value": 2
+            },
+            null
+          ],
+          [null,null,null,null],
+          [null,null,null,null],
+          [null,null,null,null]
+        ]
+      },
+      "score": 4,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 1,
+      "maxTile": 4,
+      "bonuses": {
+        "undo": 1,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {},
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "value": 2
+              },
+              null,
+              {
+                "position": {
+                  "x": 0,
+                  "y": 2
+                },
+                "value": 2
+              },
+              null
+            ],
+            [null,null,null,null],
+            [null,null,null,null],
+            [null,null,null,null]
+          ]
+        },
+        "score": 0,
+        "moves": 0,
+        "won": false,
+        "over": false
+      },
+      "randomState": 435756210,
+      "peakScore": 4
     }
   },
   {
@@ -469,6 +1579,49 @@
         "canUndo": false,
         "rng": 435756210
       }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            {
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "value": 2
+            },
+            null,
+            {
+              "position": {
+                "x": 0,
+                "y": 2
+              },
+              "value": 4
+            },
+            null
+          ],
+          [null,null,null,null],
+          [null,null,null,null],
+          [null,null,null,null]
+        ]
+      },
+      "score": 4,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 1,
+      "maxTile": 4,
+      "bonuses": {
+        "undo": 1,
+        "swap": 1,
+        "remove": 2
+      },
+      "reached": {},
+      "previous": null,
+      "randomState": 435756210,
+      "peakScore": 4
     }
   },
   {
@@ -506,6 +1659,43 @@
         "canUndo": false,
         "rng": 435756210
       }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            {
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "value": 2
+            },
+            null,
+            null,
+            null
+          ],
+          [null,null,null,null],
+          [null,null,null,null],
+          [null,null,null,null]
+        ]
+      },
+      "score": 4,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 1,
+      "maxTile": 4,
+      "bonuses": {
+        "undo": 1,
+        "swap": 1,
+        "remove": 1
+      },
+      "reached": {},
+      "previous": null,
+      "randomState": 435756210,
+      "peakScore": 4
     }
   },
   {
@@ -544,6 +1734,54 @@
         "canUndo": false,
         "rng": 1495045943
       }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [null,null,null,null],
+          [
+            null,
+            {
+              "position": {
+                "x": 1,
+                "y": 1
+              },
+              "value": 2
+            },
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            {
+              "position": {
+                "x": 2,
+                "y": 2
+              },
+              "value": 2
+            },
+            null
+          ],
+          [null,null,null,null]
+        ]
+      },
+      "score": 4,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 1,
+      "maxTile": 4,
+      "bonuses": {
+        "undo": 1,
+        "swap": 1,
+        "remove": 0
+      },
+      "reached": {},
+      "previous": null,
+      "randomState": 1495045943,
+      "peakScore": 4
     }
   },
   {
@@ -732,6 +1970,280 @@
         "canUndo": true,
         "rng": 1314174962
       }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            {
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 0,
+                "y": 1
+              },
+              "value": 8
+            },
+            {
+              "position": {
+                "x": 0,
+                "y": 2
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 0,
+                "y": 3
+              },
+              "value": 4
+            }
+          ],
+          [
+            {
+              "position": {
+                "x": 1,
+                "y": 0
+              },
+              "value": 8
+            },
+            {
+              "position": {
+                "x": 1,
+                "y": 1
+              },
+              "value": 128
+            },
+            {
+              "position": {
+                "x": 1,
+                "y": 2
+              },
+              "value": 64
+            },
+            {
+              "position": {
+                "x": 1,
+                "y": 3
+              },
+              "value": 2
+            }
+          ],
+          [
+            {
+              "position": {
+                "x": 2,
+                "y": 0
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 2,
+                "y": 1
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 2,
+                "y": 2
+              },
+              "value": 32
+            },
+            {
+              "position": {
+                "x": 2,
+                "y": 3
+              },
+              "value": 8
+            }
+          ],
+          [
+            {
+              "position": {
+                "x": 3,
+                "y": 0
+              },
+              "value": 8
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 1
+              },
+              "value": 64
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 2
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 3
+              },
+              "value": 2
+            }
+          ]
+        ]
+      },
+      "score": 1552,
+      "over": true,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 154,
+      "maxTile": 128,
+      "bonuses": {
+        "undo": 2,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {
+        "128": true
+      },
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "value": 4
+              },
+              {
+                "position": {
+                  "x": 0,
+                  "y": 1
+                },
+                "value": 8
+              },
+              {
+                "position": {
+                  "x": 0,
+                  "y": 2
+                },
+                "value": 2
+              },
+              {
+                "position": {
+                  "x": 0,
+                  "y": 3
+                },
+                "value": 4
+              }
+            ],
+            [
+              {
+                "position": {
+                  "x": 1,
+                  "y": 0
+                },
+                "value": 4
+              },
+              {
+                "position": {
+                  "x": 1,
+                  "y": 1
+                },
+                "value": 128
+              },
+              {
+                "position": {
+                  "x": 1,
+                  "y": 2
+                },
+                "value": 64
+              },
+              {
+                "position": {
+                  "x": 1,
+                  "y": 3
+                },
+                "value": 2
+              }
+            ],
+            [
+              {
+                "position": {
+                  "x": 2,
+                  "y": 0
+                },
+                "value": 2
+              },
+              {
+                "position": {
+                  "x": 2,
+                  "y": 1
+                },
+                "value": 4
+              },
+              {
+                "position": {
+                  "x": 2,
+                  "y": 2
+                },
+                "value": 32
+              },
+              {
+                "position": {
+                  "x": 2,
+                  "y": 3
+                },
+                "value": 8
+              }
+            ],
+            [
+              {
+                "position": {
+                  "x": 3,
+                  "y": 0
+                },
+                "value": 8
+              },
+              {
+                "position": {
+                  "x": 3,
+                  "y": 1
+                },
+                "value": 64
+              },
+              {
+                "position": {
+                  "x": 3,
+                  "y": 2
+                },
+                "value": 4
+              },
+              {
+                "position": {
+                  "x": 3,
+                  "y": 3
+                },
+                "value": 2
+              }
+            ]
+          ]
+        },
+        "score": 1544,
+        "moves": 153,
+        "won": false,
+        "over": false
+      },
+      "randomState": 1314174962,
+      "peakScore": 1552
     }
   },
   {
@@ -921,6 +2433,150 @@
         "canUndo": false,
         "rng": 1314174962
       }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            {
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 0,
+                "y": 1
+              },
+              "value": 8
+            },
+            {
+              "position": {
+                "x": 0,
+                "y": 2
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 0,
+                "y": 3
+              },
+              "value": 4
+            }
+          ],
+          [
+            {
+              "position": {
+                "x": 1,
+                "y": 0
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 1,
+                "y": 1
+              },
+              "value": 128
+            },
+            {
+              "position": {
+                "x": 1,
+                "y": 2
+              },
+              "value": 64
+            },
+            {
+              "position": {
+                "x": 1,
+                "y": 3
+              },
+              "value": 2
+            }
+          ],
+          [
+            {
+              "position": {
+                "x": 2,
+                "y": 0
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 2,
+                "y": 1
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 2,
+                "y": 2
+              },
+              "value": 32
+            },
+            {
+              "position": {
+                "x": 2,
+                "y": 3
+              },
+              "value": 8
+            }
+          ],
+          [
+            {
+              "position": {
+                "x": 3,
+                "y": 0
+              },
+              "value": 8
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 1
+              },
+              "value": 64
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 2
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 3
+              },
+              "value": 2
+            }
+          ]
+        ]
+      },
+      "score": 1544,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 153,
+      "maxTile": 128,
+      "bonuses": {
+        "undo": 1,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {
+        "128": true
+      },
+      "previous": null,
+      "randomState": 1314174962,
+      "peakScore": 1552
     }
   },
   {
@@ -1906,6 +3562,171 @@
         "canUndo": true,
         "rng": 4244938963
       }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [null,null,null,null],
+          [null,null,null,null],
+          [
+            {
+              "position": {
+                "x": 2,
+                "y": 0
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 2,
+                "y": 1
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 2,
+                "y": 2
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 2,
+                "y": 3
+              },
+              "value": 4
+            }
+          ],
+          [
+            {
+              "position": {
+                "x": 3,
+                "y": 0
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 1
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 2
+              },
+              "value": 8
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 3
+              },
+              "value": 2048
+            }
+          ]
+        ]
+      },
+      "score": 20164,
+      "over": false,
+      "won": true,
+      "keepPlaying": false,
+      "moves": 949,
+      "maxTile": 2048,
+      "bonuses": {
+        "undo": 2,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {
+        "128": true,
+        "256": true,
+        "512": true
+      },
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "value": 2
+              },
+              {
+                "position": {
+                  "x": 0,
+                  "y": 1
+                },
+                "value": 4
+              },
+              {
+                "position": {
+                  "x": 0,
+                  "y": 2
+                },
+                "value": 4
+              },
+              {
+                "position": {
+                  "x": 0,
+                  "y": 3
+                },
+                "value": 4
+              }
+            ],
+            [
+              null,
+              null,
+              {
+                "position": {
+                  "x": 1,
+                  "y": 2
+                },
+                "value": 8
+              },
+              {
+                "position": {
+                  "x": 1,
+                  "y": 3
+                },
+                "value": 1024
+              }
+            ],
+            [
+              null,
+              {
+                "position": {
+                  "x": 2,
+                  "y": 1
+                },
+                "value": 2
+              },
+              null,
+              {
+                "position": {
+                  "x": 2,
+                  "y": 3
+                },
+                "value": 1024
+              }
+            ],
+            [null,null,null,null]
+          ]
+        },
+        "score": 18116,
+        "moves": 948,
+        "won": false,
+        "over": false
+      },
+      "randomState": 4244938963,
+      "peakScore": 20164
     }
   },
   {
@@ -2892,6 +4713,171 @@
         "canUndo": true,
         "rng": 4244938963
       }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [null,null,null,null],
+          [null,null,null,null],
+          [
+            {
+              "position": {
+                "x": 2,
+                "y": 0
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 2,
+                "y": 1
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 2,
+                "y": 2
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 2,
+                "y": 3
+              },
+              "value": 4
+            }
+          ],
+          [
+            {
+              "position": {
+                "x": 3,
+                "y": 0
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 1
+              },
+              "value": 2
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 2
+              },
+              "value": 8
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 3
+              },
+              "value": 2048
+            }
+          ]
+        ]
+      },
+      "score": 20164,
+      "over": false,
+      "won": true,
+      "keepPlaying": true,
+      "moves": 949,
+      "maxTile": 2048,
+      "bonuses": {
+        "undo": 2,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {
+        "128": true,
+        "256": true,
+        "512": true
+      },
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "value": 2
+              },
+              {
+                "position": {
+                  "x": 0,
+                  "y": 1
+                },
+                "value": 4
+              },
+              {
+                "position": {
+                  "x": 0,
+                  "y": 2
+                },
+                "value": 4
+              },
+              {
+                "position": {
+                  "x": 0,
+                  "y": 3
+                },
+                "value": 4
+              }
+            ],
+            [
+              null,
+              null,
+              {
+                "position": {
+                  "x": 1,
+                  "y": 2
+                },
+                "value": 8
+              },
+              {
+                "position": {
+                  "x": 1,
+                  "y": 3
+                },
+                "value": 1024
+              }
+            ],
+            [
+              null,
+              {
+                "position": {
+                  "x": 2,
+                  "y": 1
+                },
+                "value": 2
+              },
+              null,
+              {
+                "position": {
+                  "x": 2,
+                  "y": 3
+                },
+                "value": 1024
+              }
+            ],
+            [null,null,null,null]
+          ]
+        },
+        "score": 18116,
+        "moves": 948,
+        "won": false,
+        "over": false
+      },
+      "randomState": 4244938963,
+      "peakScore": 20164
     }
   },
   {
@@ -3890,6 +5876,174 @@
         "canUndo": true,
         "rng": 3541303051
       }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            null,
+            null,
+            null,
+            {
+              "position": {
+                "x": 0,
+                "y": 3
+              },
+              "value": 4
+            }
+          ],
+          [
+            null,
+            null,
+            null,
+            {
+              "position": {
+                "x": 1,
+                "y": 3
+              },
+              "value": 4
+            }
+          ],
+          [
+            null,
+            null,
+            {
+              "position": {
+                "x": 2,
+                "y": 2
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 2,
+                "y": 3
+              },
+              "value": 8
+            }
+          ],
+          [
+            {
+              "position": {
+                "x": 3,
+                "y": 0
+              },
+              "value": 2
+            },
+            null,
+            {
+              "position": {
+                "x": 3,
+                "y": 2
+              },
+              "value": 32
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 3
+              },
+              "value": 2048
+            }
+          ]
+        ]
+      },
+      "score": 20284,
+      "over": false,
+      "won": true,
+      "keepPlaying": true,
+      "moves": 961,
+      "maxTile": 2048,
+      "bonuses": {
+        "undo": 2,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {
+        "128": true,
+        "256": true,
+        "512": true
+      },
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              null,
+              null,
+              null,
+              {
+                "position": {
+                  "x": 0,
+                  "y": 3
+                },
+                "value": 4
+              }
+            ],
+            [
+              null,
+              null,
+              null,
+              {
+                "position": {
+                  "x": 1,
+                  "y": 3
+                },
+                "value": 4
+              }
+            ],
+            [
+              null,
+              {
+                "position": {
+                  "x": 2,
+                  "y": 1
+                },
+                "value": 2
+              },
+              {
+                "position": {
+                  "x": 2,
+                  "y": 2
+                },
+                "value": 2
+              },
+              {
+                "position": {
+                  "x": 2,
+                  "y": 3
+                },
+                "value": 8
+              }
+            ],
+            [
+              null,
+              null,
+              {
+                "position": {
+                  "x": 3,
+                  "y": 2
+                },
+                "value": 32
+              },
+              {
+                "position": {
+                  "x": 3,
+                  "y": 3
+                },
+                "value": 2048
+              }
+            ]
+          ]
+        },
+        "score": 20280,
+        "moves": 960,
+        "won": true,
+        "over": false
+      },
+      "randomState": 3541303051,
+      "peakScore": 20284
     }
   }
 ]

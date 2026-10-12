@@ -61,7 +61,13 @@ function expected(env) {
 }
 
 function fixture(name, env) {
-	return { name, seed: env.seed, actions: copy(env.stored.actions), expected: expected(env) }
+	return {
+		name,
+		seed: env.seed,
+		actions: copy(env.stored.actions),
+		expected: expected(env),
+		savedState: copy({ ...env.game.serialize(), peakScore: env.stored.peakScore }),
+	}
 }
 
 function apply(env, action) {
