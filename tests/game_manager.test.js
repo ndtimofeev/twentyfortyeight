@@ -6,23 +6,33 @@ const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
 
-function load(savedState) {
+function load(savedState, options = {}) {
 	const math = Object.create(Math)
 	math.random = () => 0.5
 
-	const stored = { state: savedState || null }
+	const stored = { state: savedState || null, actions: options.actions || [], scores: [] }
 	const ctx = vm.createContext({ console, Math: math, JSON })
 	ctx.BonusUI = class { tap() {} update() { ctx.updates = (ctx.updates || 0) + 1 } }
-	ctx.InputManager = class { on() {} }
+	ctx.InputManager = class {
+		constructor() { this.events = {} }
+		on(name, handler) { this.events[name] = handler }
+	}
 	ctx.Actuator = class { actuate() {} continueGame() { ctx.continued = (ctx.continued || 0) + 1 } }
 	ctx.Storage = class {
+		constructor() {
+			this.actions = stored.actions
+			if (options.seed) this.session = { seed: options.seed }
+		}
 		getBestScore() { return 0 }
 		setBestScore() {}
+		updateScore(score, stats) { stored.scores.push({ score, ...stats }) }
+		recordAction(action) { this.actions.push(JSON.parse(JSON.stringify(action))) }
 		getGameState() { return stored.state }
 		setGameState(s) { stored.state = JSON.parse(JSON.stringify(s)) }
 		clearGameState() { stored.state = null }
 	}
-	for (const file of ['grid', 'tile', 'game_manager']) {
+	if (options.prepareGame) ctx.Storage.prototype.prepareGame = options.prepareGame
+	for (const file of ['grid', 'tile', 'seeded_random', 'game_manager']) {
 		vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', file + '.js'), 'utf8'), ctx)
 	}
 	const game = vm.runInContext('new GameManager(4, InputManager, Actuator, Storage)', ctx)
@@ -373,4 +383,249 @@ test('the best tile survives Remove taking it off the board', () => {
 	assert.strictEqual(game.stats().bestTile, 128)
 	game.removeTilesOfValue(128)
 	assert.strictEqual(game.stats().bestTile, 128)
+})
+
+test('Keep going is saved immediately and survives reload before the next move', () => {
+	const env = load()
+	setBoard(env, withRow(0, [1024, 1024, 0, 0]))
+	env.game.move(LEFT)
+	assert.strictEqual(env.game.inputManager.events.keepPlaying(), true)
+	assert.strictEqual(env.stored.state.keepPlaying, true)
+	const resumed = load(env.stored.state)
+	assert.strictEqual(resumed.game.isGameTerminated(), false)
+	assert.strictEqual(resumed.game.canUseBonus('swap'), true)
+	assert.deepStrictEqual(env.stored.actions, [['move', LEFT], ['continue']])
+	assert.strictEqual(env.game.inputManager.events.keepPlaying(), false)
+	assert.strictEqual(env.stored.actions.length, 2)
+})
+
+test('the seeded generator has stable unsigned reference vectors', () => {
+	const { ctx } = load()
+	const rng = new ctx.SeededRandom(1)
+	const actual = Array.from({ length: 6 }, () => rng.next() * 4294967296)
+	assert.deepStrictEqual(actual, [270369, 67634689, 2647435461, 307599695, 2398689233, 745495504])
+	assert.strictEqual(new ctx.SeededRandom(0xffffffff).next() * 4294967296, 253983)
+	assert.throws(() => new ctx.SeededRandom(0), /Invalid game seed/)
+})
+
+test('the same seed and actions produce the same board and RNG state', () => {
+	for (const seed of [1, 42, 0xffffffff]) {
+		const first = load(null, { seed })
+		const second = load(null, { seed })
+		for (const direction of [0, 1, 2, 3, 0, 3, 2, 1, 3, 0]) {
+			first.game.move(direction)
+			second.game.move(direction)
+		}
+		assert.deepStrictEqual(board(first.game), board(second.game))
+		assert.strictEqual(first.game.random.state, second.game.random.state)
+		assert.deepStrictEqual(first.stored.actions, second.stored.actions)
+	}
+})
+
+test('reload resumes the random stream rather than restarting it from the seed', () => {
+	const first = load(null, { seed: 42 })
+	for (const direction of [0, 1, 2, 3, 0]) first.game.move(direction)
+	const resumed = load(first.stored.state, { seed: 42, actions: [...first.stored.actions] })
+	for (const direction of [2, 1, 0, 3, 2, 0]) {
+		first.game.move(direction)
+		resumed.game.move(direction)
+	}
+	assert.deepStrictEqual(board(first.game), board(resumed.game))
+	assert.strictEqual(first.game.random.state, resumed.game.random.state)
+	assert.deepStrictEqual(first.stored.actions, resumed.stored.actions)
+})
+
+test('restart initializes a fresh deterministic game from the new server seed', async () => {
+	const env = load(null, { seed: 1 })
+	env.game.move(0)
+	env.game.storageManager.prepareGame = function () {
+		this.session = { seed: 42 }
+		this.actions.length = 0
+		return Promise.resolve(null)
+	}
+	env.game.restart()
+	await new Promise(resolve => setImmediate(resolve))
+	const fresh = load(null, { seed: 42 })
+	assert.deepStrictEqual(board(env.game), board(fresh.game))
+	assert.strictEqual(env.game.random.state, fresh.game.random.state)
+	assert.strictEqual(env.game.moves, 0)
+	assert.deepStrictEqual(env.stored.actions, [])
+})
+
+test('only successful actions are logged, including undo, swap, remove and continuation', () => {
+	const env = load()
+	const game = env.game
+	setBoard(env, withRow(0, [2, 4, 0, 0]))
+	game.move(LEFT) // already aligned: no-op
+	assert.strictEqual(game.undo(), false)
+	assert.strictEqual(game.swapTiles({ x: 0, y: 0 }, { x: 2, y: 0 }), false)
+	assert.strictEqual(game.removeTilesOfValue(16), false)
+	assert.strictEqual(game.inputManager.events.keepPlaying(), false)
+	assert.deepStrictEqual(env.stored.actions, [])
+	game.move(2)
+	assert.ok(game.undo())
+	assert.ok(game.swapTiles({ x: 0, y: 0 }, { x: 1, y: 0 }))
+	assert.ok(game.removeTilesOfValue(2))
+	assert.deepStrictEqual(env.stored.actions, [['move', 2], ['undo'], ['swap', 0, 0, 1, 0], ['remove', 2]])
+	assert.strictEqual(game.undo(), false)
+	assert.strictEqual(game.removeTilesOfValue(2), false)
+	assert.strictEqual(env.stored.actions.length, 4)
+})
+
+test('Undo preserves the forward random stream and the historical peak tile', () => {
+	const env = load(null, { seed: 1 })
+	env.game.move(0)
+	const rngAfterMove = env.game.random.state
+	assert.ok(env.game.undo())
+	assert.strictEqual(env.game.random.state, rngAfterMove)
+	assert.strictEqual(env.game.score, 0)
+	assert.strictEqual(env.game.maxTile, 4)
+	env.game.move(0)
+	assert.notStrictEqual(env.game.random.state, rngAfterMove)
+	assert.deepStrictEqual(env.stored.actions, [['move', 0], ['undo'], ['move', 0]])
+})
+
+test('score metadata is refreshed on every successful action, even when score is unchanged', () => {
+	const env = load()
+	setBoard(env, withRow(0, [2, 4, 0, 0]))
+	const initial = env.stored.scores.length
+	env.game.move(2)
+	env.game.undo()
+	env.game.swapTiles({ x: 0, y: 0 }, { x: 1, y: 0 })
+	env.game.removeTilesOfValue(2)
+	assert.strictEqual(env.stored.scores.length, initial + 4)
+	assert.deepStrictEqual(env.stored.scores.map(s => s.moves).slice(initial), [1, 0, 0, 0])
+})
+
+test('input is ignored while verified initialization is pending', async () => {
+	let resolveStart
+	let preparations = 0
+	const env = load(null, { seed: 42, prepareGame() {
+		preparations++
+		return new Promise(resolve => { resolveStart = resolve })
+	} })
+	assert.strictEqual(env.game.initializing, true)
+	assert.strictEqual(env.game.grid, null)
+	assert.strictEqual(env.game.isGameTerminated(), true)
+	assert.strictEqual(env.game.canUseBonus('undo'), false)
+	assert.strictEqual(env.game.canUseBonus('swap'), false)
+	assert.strictEqual(env.game.canUseBonus('remove'), false)
+	assert.doesNotThrow(() => env.game.move(0))
+	assert.strictEqual(env.game.undo(), false)
+	assert.strictEqual(env.game.swapTiles({ x: 0, y: 0 }, { x: 1, y: 0 }), false)
+	assert.strictEqual(env.game.removeTilesOfValue(2), false)
+	assert.strictEqual(env.game.inputManager.events.keepPlaying(), false)
+	env.game.restart()
+	assert.strictEqual(preparations, 1)
+	assert.deepStrictEqual(env.stored.actions, [])
+	resolveStart(null)
+	await new Promise(resolve => setImmediate(resolve))
+	assert.strictEqual(env.game.initializing, false)
+	assert.ok(env.game.grid)
+	assert.deepStrictEqual(board(env.game), board(load(null, { seed: 42 }).game))
+})
+
+test('failed initialization leaves input guarded and New Game retries successfully', async () => {
+	let attempts = 0
+	const env = load(null, { seed: 1, prepareGame() {
+		attempts++
+		return attempts === 1 ? Promise.reject(new Error('offline')) : Promise.resolve(null)
+	} })
+	await new Promise(resolve => setImmediate(resolve))
+	assert.strictEqual(env.game.initializing, false)
+	assert.strictEqual(env.game.grid, null)
+	assert.doesNotThrow(() => env.game.move(0))
+	assert.strictEqual(env.game.undo(), false)
+	assert.strictEqual(env.game.removeTilesOfValue(2), false)
+	assert.deepStrictEqual(env.stored.actions, [])
+	env.game.restart()
+	await new Promise(resolve => setImmediate(resolve))
+	assert.strictEqual(attempts, 2)
+	assert.ok(env.game.grid)
+	assert.strictEqual(env.game.initializing, false)
+	assert.strictEqual(env.game.moves, 0)
+})
+
+test('asynchronous preparation restores the approved saved game and its RNG state', async () => {
+	const before = load(null, { seed: 42 })
+	for (const direction of [0, 1, 2, 3]) before.game.move(direction)
+	const saved = before.stored.state
+	let requested
+	const env = load(saved, { seed: 42, actions: [...before.stored.actions], prepareGame(state) {
+		requested = state
+		return Promise.resolve(state)
+	} })
+	assert.strictEqual(env.game.grid, null)
+	await new Promise(resolve => setImmediate(resolve))
+	assert.strictEqual(requested, saved)
+	assert.deepStrictEqual(board(env.game), board(before.game))
+	assert.strictEqual(env.game.random.state, before.game.random.state)
+	assert.strictEqual(env.game.moves, before.game.moves)
+	assert.strictEqual(env.game.canUndo(), before.game.canUndo())
+	env.game.move(0)
+	before.game.move(0)
+	assert.deepStrictEqual(board(env.game), board(before.game))
+	assert.deepStrictEqual(env.stored.actions, before.stored.actions)
+})
+
+test('a late initialization result cannot replace a newer game', async () => {
+	const pending = []
+	const env = load(null, { seed: 1, prepareGame() {
+		return new Promise(resolve => pending.push(resolve))
+	} })
+	const newer = load(null, { seed: 42 }).stored.state
+	env.game.setup()
+	pending[1](newer)
+	await new Promise(resolve => setImmediate(resolve))
+	const settled = board(env.game)
+	pending[0](null)
+	await new Promise(resolve => setImmediate(resolve))
+	assert.deepStrictEqual(board(env.game), settled)
+	assert.strictEqual(env.game.random.state, newer.randomState)
+})
+
+test('the 50000 action boundary prevents unrecorded changes and allows a restart', async () => {
+	const env = load(null, { actions: Array.from({ length: 49999 }, () => ['move', 0]) })
+	setBoard(env, withRow(0, [2, 4, 0, 0]))
+	env.game.move(2)
+	assert.strictEqual(env.stored.actions.length, 50000)
+	const before = JSON.parse(JSON.stringify(env.game.serialize()))
+	env.game.move(0)
+	assert.strictEqual(env.game.undo(), false)
+	assert.strictEqual(env.game.swapTiles({ x: 0, y: 3 }, { x: 1, y: 3 }), false)
+	assert.strictEqual(env.game.removeTilesOfValue(2), false)
+	assert.deepStrictEqual(JSON.parse(JSON.stringify(env.game.serialize())), before)
+	assert.strictEqual(env.stored.actions.length, 50000)
+	env.game.storageManager.prepareGame = function () { this.actions.length = 0; return Promise.resolve(null) }
+	assert.doesNotThrow(() => env.game.restart())
+	await new Promise(resolve => setImmediate(resolve))
+	assert.strictEqual(env.stored.actions.length, 0)
+	assert.strictEqual(env.game.canRecordAction(), true)
+	assert.strictEqual(env.game.moves, 0)
+})
+
+test('continuation cannot change or log a game beyond the action limit', () => {
+	const env = load()
+	setBoard(env, withRow(0, [1024, 1024, 0, 0]))
+	env.game.move(LEFT)
+	env.game.storageManager.actions.length = 50000
+	assert.strictEqual(env.game.inputManager.events.keepPlaying(), false)
+	assert.strictEqual(env.game.keepPlaying, false)
+	assert.strictEqual(env.game.isGameTerminated(), true)
+})
+
+test('golden replay fixtures match the real browser rules, including a genuine 2048 win', () => {
+	const { createGame, apply, expected } = require('./generate_replay_fixtures')
+	const fixtures = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'replay.json'), 'utf8'))
+	assert.ok(fixtures.some(f => f.expected.state.won && f.expected.state.keepPlaying), 'verified continuation included')
+	assert.ok(fixtures.some(f => f.expected.state.over), 'game-over included')
+	for (const fixture of fixtures) {
+		const env = createGame(fixture.seed)
+		for (const action of fixture.actions) {
+			const length = env.stored.actions.length
+			apply(env, action)
+			assert.strictEqual(env.stored.actions.length, length + 1, fixture.name + ': recorded action must succeed')
+		}
+		assert.deepStrictEqual(expected(env), fixture.expected, fixture.name)
+	}
 })

@@ -1,3 +1,5 @@
 node_modules/
 *.tar.gz
 build/
+work/
+__pycache__/

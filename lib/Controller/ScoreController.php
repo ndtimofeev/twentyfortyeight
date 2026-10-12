@@ -5,24 +5,20 @@ declare(strict_types=1);
 namespace OCA\TwentyFortyEight\Controller;
 
 use OCA\TwentyFortyEight\AppInfo\Application;
-use OCA\TwentyFortyEight\Db\Score;
 use OCA\TwentyFortyEight\Db\ScoreMapper;
+use OCA\TwentyFortyEight\Game\GameSession;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Utility\ITimeFactory;
-use OCP\DB\Exception as DbException;
 use OCP\IRequest;
 use OCP\IUserManager;
 use OCP\IUserSession;
 
 class ScoreController extends Controller {
 	private const LEADERBOARD_SIZE = 20;
-	/** Theoretical maximum score on a 4x4 board is a bit below 4 million. */
-	private const MAX_SCORE = 4_000_000;
-	private const MAX_MOVES = 1_000_000;
 
 	public function __construct(
 		IRequest $request,
@@ -30,6 +26,7 @@ class ScoreController extends Controller {
 		private IUserSession $userSession,
 		private IUserManager $userManager,
 		private ITimeFactory $time,
+		private GameSession $games,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -40,26 +37,21 @@ class ScoreController extends Controller {
 	}
 
 	/**
-	 * Stores the score if it beats the user's previous best.
+	 * Verify the game's actions and store the records calculated by the server.
 	 */
 	#[NoAdminRequired]
 	#[UserRateLimit(limit: 60, period: 60)]
-	public function submit(int $score, int $bestTile, int $moves): DataResponse {
-		if ($score < 0 || $score > self::MAX_SCORE
-			|| $moves < 0 || $moves > self::MAX_MOVES
-			|| !$this->isValidTile($bestTile)) {
-			return new DataResponse(['message' => 'Invalid score'], Http::STATUS_BAD_REQUEST);
+	public function submit(string $session, array $actions): DataResponse {
+		$uid = $this->currentUid();
+		try {
+			$stats = $this->games->verify($uid, $session, $actions);
+		} catch (\InvalidArgumentException $e) {
+			return new DataResponse(['message' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
 		}
 
-		$uid = $this->currentUid();
-		$this->storeScore($uid, $score, $bestTile, $moves);
+		$this->storeScore($uid, $stats['peakScore'], $stats['bestTileEver'], $stats['movesAtPeakScore']);
 
 		return new DataResponse($this->leaderboardData($uid));
-	}
-
-	private function isValidTile(int $tile): bool {
-		// 0 (nothing yet) or a power of two between 2 and 2^17
-		return $tile === 0 || ($tile >= 2 && $tile <= 131072 && ($tile & ($tile - 1)) === 0);
 	}
 
 	private function currentUid(): string {
@@ -67,46 +59,21 @@ class ScoreController extends Controller {
 		return $this->userSession->getUser()->getUID();
 	}
 
-	private function storeScore(string $uid, int $score, int $bestTile, int $moves, bool $retry = true): void {
-		$existing = $this->mapper->findByUser($uid);
-
-		if ($existing === null) {
-			$entry = new Score();
-			$entry->setUserId($uid);
-			$entry->setScore($score);
-			$entry->setBestTile($bestTile);
-			$entry->setMoves($moves);
-			$entry->setUpdatedAt($this->time->getTime());
-			try {
-				$this->mapper->insert($entry);
-			} catch (DbException $e) {
-				// Two tabs submitting the first score at the same time.
-				if ($retry && $e->getReason() === DbException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
-					$this->storeScore($uid, $score, $bestTile, $moves, false);
-					return;
-				}
-				throw $e;
-			}
-			return;
-		}
-
-		if ($score > $existing->getScore()) {
-			$existing->setScore($score);
-			$existing->setBestTile(max($bestTile, $existing->getBestTile()));
-			$existing->setMoves($moves);
-			$existing->setUpdatedAt($this->time->getTime());
-			$this->mapper->update($existing);
-		} elseif ($bestTile > $existing->getBestTile()) {
-			$existing->setBestTile($bestTile);
-			$this->mapper->update($existing);
-		}
+	private function storeScore(string $uid, int $score, int $bestTile, int $moves): void {
+		$this->mapper->storeBest($uid, $score, $bestTile, $moves, $this->time->getTime());
 	}
 
 	private function leaderboardData(string $uid): array {
 		$entries = [];
+		$rank = 0;
+		$previousScore = null;
 		foreach ($this->mapper->findTop(self::LEADERBOARD_SIZE) as $i => $entry) {
+			if ($entry->getScore() !== $previousScore) {
+				$rank = $i + 1;
+				$previousScore = $entry->getScore();
+			}
 			$entries[] = [
-				'rank' => $i + 1,
+				'rank' => $rank,
 				'userId' => $entry->getUserId(),
 				'displayName' => $this->displayName($entry->getUserId()),
 				'score' => $entry->getScore(),

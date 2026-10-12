@@ -31,8 +31,29 @@ KeyboardInputManager.prototype.emit = function (event, data) {
   }
 };
 
+// Global shortcuts belong to the game while its page is focused, and must not
+// operate the board behind a Nextcloud modal or from another navigation control.
+KeyboardInputManager.canHandleKeyEvent = function (event) {
+  var root = document.querySelector("#tfe");
+  var target = event.target;
+  if (!root || (target && target !== document.body && target !== document.documentElement &&
+                !root.contains(target))) return false;
+  if (target && (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) || target.isContentEditable)) return false;
+
+  var dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+  for (var i = 0; i < dialogs.length; i++) {
+    var dialog = dialogs[i];
+    if (root.contains(dialog) || dialog.hidden || dialog.getAttribute("aria-hidden") === "true" ||
+        dialog.getClientRects().length === 0) continue;
+    var style = window.getComputedStyle(dialog);
+    if (style.display !== "none" && style.visibility !== "hidden" && style.visibility !== "collapse") return false;
+  }
+  return true;
+};
+
 KeyboardInputManager.prototype.listen = function () {
   var self = this;
+  var gameContainer = document.getElementsByClassName("game-container")[0];
 
   var map = {
     38: 0, // Up
@@ -51,12 +72,9 @@ KeyboardInputManager.prototype.listen = function () {
 
   // Respond to direction keys
   document.addEventListener("keydown", function (event) {
-    // Nextcloud adaptation: leave keys alone while the user is typing somewhere
-    var target = event.target;
-    if (target && (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) ||
-                   target.isContentEditable)) {
-      return;
-    }
+    // Bonus selection owns these keys, even though this listener was bound first.
+    if (event.defaultPrevented || gameContainer.classList.contains("bonus-mode") ||
+        !KeyboardInputManager.canHandleKeyEvent(event)) return;
 
     var modifiers = event.altKey || event.ctrlKey || event.metaKey ||
                     event.shiftKey;
@@ -82,11 +100,21 @@ KeyboardInputManager.prototype.listen = function () {
 
   // Respond to swipe events
   var touchStartClientX, touchStartClientY;
-  var gameContainer = document.getElementsByClassName("game-container")[0];
+
+  function isButton(event) {
+    var target = event.target;
+    while (target && target !== gameContainer) {
+      if (target.tagName === "BUTTON") return true;
+      target = target.parentNode;
+    }
+    return false;
+  }
 
   gameContainer.addEventListener(this.eventTouchstart, function (event) {
+    touchStartClientX = touchStartClientY = undefined;
+    if (isButton(event)) return; // native clicks also handle touch activation
     if ((!window.navigator.msPointerEnabled && event.touches.length > 1) ||
-        event.targetTouches.length > 1) {
+        (event.targetTouches && event.targetTouches.length > 1)) {
       return; // Ignore if touching with more than 1 finger
     }
 
@@ -102,12 +130,14 @@ KeyboardInputManager.prototype.listen = function () {
   });
 
   gameContainer.addEventListener(this.eventTouchmove, function (event) {
+    if (isButton(event)) return;
     event.preventDefault();
   });
 
   gameContainer.addEventListener(this.eventTouchend, function (event) {
+    if (isButton(event) || touchStartClientX === undefined) return;
     if ((!window.navigator.msPointerEnabled && event.touches.length > 0) ||
-        event.targetTouches.length > 0) {
+        (event.targetTouches && event.targetTouches.length > 0)) {
       return; // Ignore if still touching with one or more fingers
     }
 
@@ -126,8 +156,10 @@ KeyboardInputManager.prototype.listen = function () {
 
     var dy = touchEndClientY - touchStartClientY;
     var absDy = Math.abs(dy);
+    touchStartClientX = touchStartClientY = undefined;
 
     if (Math.max(absDx, absDy) > 10) {
+      if (gameContainer.classList.contains("bonus-mode")) return;
       // (right : left) : (down : up)
       self.emit("move", absDx > absDy ? (dx > 0 ? 1 : 3) : (dy > 0 ? 2 : 0));
     } else {
@@ -151,5 +183,4 @@ KeyboardInputManager.prototype.keepPlaying = function (event) {
 KeyboardInputManager.prototype.bindButtonPress = function (selector, fn) {
   var button = document.querySelector(selector);
   button.addEventListener("click", fn.bind(this));
-  button.addEventListener(this.eventTouchend, fn.bind(this));
 };

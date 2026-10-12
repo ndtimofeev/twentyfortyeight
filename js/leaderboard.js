@@ -14,17 +14,24 @@ Leaderboard.prototype.render = function (data) {
 
   data.leaderboard.forEach(function (row) {
     var item  = document.createElement("li");
+    var rank  = document.createElement("span");
     var name  = document.createElement("span");
     var tile  = document.createElement("span");
     var score = document.createElement("strong");
 
     if (row.isMe) item.className = "tfe-mine";
+    rank.className = "tfe-rank";
+    rank.textContent = row.rank;
+    rank.setAttribute("aria-label", "Place " + row.rank);
+    item.value = row.rank;
+    item.setAttribute("data-rank", row.rank);
     name.className = "tfe-name";
     name.textContent = row.displayName;
     tile.className = "tfe-tile-best";
     tile.textContent = row.bestTile || "";
     score.textContent = row.score;
 
+    item.appendChild(rank);
     item.appendChild(name);
     item.appendChild(tile);
     item.appendChild(score);

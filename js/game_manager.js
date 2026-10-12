@@ -11,6 +11,10 @@ function GameManager(size, InputManager, Actuator, StorageManager) {
   this.storageManager = new StorageManager;
   this.actuator       = new Actuator;
 
+  this.initializing   = false;
+  this.bonuses        = this.freshBonuses();
+  this.setupGeneration = 0;
+
   this.bonusUI        = new BonusUI(this);
 
   this.startTiles     = 2;
@@ -25,6 +29,7 @@ function GameManager(size, InputManager, Actuator, StorageManager) {
 
 // Restart the game
 GameManager.prototype.restart = function () {
+  if (this.initializing) return;
   this.storageManager.clearGameState();
   this.actuator.continueGame(); // Clear the game won/lost message
   this.setup();
@@ -32,19 +37,51 @@ GameManager.prototype.restart = function () {
 
 // Keep playing after winning (allows going over 2048)
 GameManager.prototype.keepPlaying = function () {
+  if (!this.won || this.over || this.keepPlaying || !this.canRecordAction()) return false;
   this.keepPlaying = true;
+  this.recordAction(["continue"]);
   this.actuator.continueGame(); // Clear the game won/lost message
-  this.bonusUI.update();        // swap and remove work again
+  this.actuate();               // save the flag immediately, including on reload
+  return true;
 };
 
 // Return true if the game is lost, or has won and the user hasn't kept playing
 GameManager.prototype.isGameTerminated = function () {
-  return this.over || (this.won && !this.keepPlaying);
+  return this.initializing || !this.grid || this.over || (this.won && !this.keepPlaying);
 };
 
 // Set up the game
 GameManager.prototype.setup = function () {
   var previousState = this.storageManager.getGameState();
+
+  if (this.storageManager.prepareGame) {
+    var self = this;
+    var generation = ++this.setupGeneration;
+    this.initializing = true;
+    this.grid = null;
+    this.bonusUI.update();
+    this.setStatus("Starting game…");
+    return this.storageManager.prepareGame(previousState).then(function (state) {
+      if (generation !== self.setupGeneration) return;
+      self.setStatus("");
+      self.initializeState(state);
+    }).catch(function (error) {
+      if (generation !== self.setupGeneration) return;
+      self.initializing = false;
+      self.bonusUI.update();
+      self.setStatus(error && (error.status === 401 || error.status === 403 || error.status === 412)
+        ? "Sign in again and refresh this page to start a new game."
+        : "Unable to start a verified game. Check your connection and press New Game to retry.");
+    });
+  }
+
+  this.initializeState(previousState);
+};
+
+GameManager.prototype.initializeState = function (previousState) {
+  var session = this.storageManager.session;
+  this.random = session ? new SeededRandom(previousState && previousState.randomState || session.seed) : null;
+  this.initializing = false;
 
   // Reload the game from a previous game if present
   if (previousState) {
@@ -88,19 +125,45 @@ GameManager.prototype.addStartTiles = function () {
 
 // Adds a tile in a random position
 GameManager.prototype.addRandomTile = function () {
-  if (this.grid.cellsAvailable()) {
-    var value = Math.random() < 0.9 ? 2 : 4;
-    var tile = new Tile(this.grid.randomAvailableCell(), value);
+  var cells = this.grid.availableCells();
+  if (cells.length) {
+    var value = this.randomValue() < 0.9 ? 2 : 4;
+    var tile = new Tile(cells[Math.floor(this.randomValue() * cells.length)], value);
 
     this.grid.insertTile(tile);
   }
+};
+
+GameManager.prototype.randomValue = function () {
+  return this.random ? this.random.next() : Math.random();
+};
+
+GameManager.prototype.setStatus = function (message) {
+  if (typeof document === "undefined") return;
+  var status = document.querySelector(".tfe-status");
+  if (status) status.textContent = message;
+};
+
+GameManager.prototype.canRecordAction = function () {
+  if (this.initializing || !this.grid) return false;
+  if (this.storageManager.actions && this.storageManager.actions.length >= 50000) {
+    this.setStatus("This game has reached the action limit. Start a new game to continue.");
+    return false;
+  }
+  return true;
+};
+
+GameManager.prototype.recordAction = function (action) {
+  if (this.storageManager.recordAction) this.storageManager.recordAction(action);
 };
 
 // Sends the updated grid to the actuator
 GameManager.prototype.actuate = function () {
   var stats = this.stats(); // also remembers the biggest tile of the game
 
-  if (this.storageManager.getBestScore() < this.score) {
+  if (this.storageManager.updateScore) {
+    this.storageManager.updateScore(this.score, stats);
+  } else if (this.storageManager.getBestScore() < this.score) {
     this.storageManager.setBestScore(this.score, stats);
   }
 
@@ -136,7 +199,8 @@ GameManager.prototype.serialize = function () {
     maxTile:     this.maxTile,
     bonuses:     this.bonuses,
     reached:     this.reached,
-    previous:    this.previous
+    previous:    this.previous,
+    randomState: this.random ? this.random.state : undefined
   };
 };
 
@@ -176,7 +240,7 @@ GameManager.prototype.move = function (direction) {
   // 0: up, 1: right, 2: down, 3: left
   var self = this;
 
-  if (this.isGameTerminated()) return; // Don't do anything if the game's over
+  if (this.isGameTerminated() || !this.canRecordAction()) return;
 
   var cell, tile;
 
@@ -236,6 +300,7 @@ GameManager.prototype.move = function (direction) {
       this.over = true; // Game over!
     }
 
+    this.recordAction(["move", direction]);
     this.actuate();
   }
 };
@@ -351,11 +416,12 @@ GameManager.prototype.awardBonus = function (value) {
 };
 
 GameManager.prototype.canUndo = function () {
-  return !!this.previous && this.bonuses.undo > 0;
+  return !this.initializing && !!this.grid && !!this.previous && this.bonuses.undo > 0;
 };
 
 // Swap and remove change the board without a move, so they need a running game
 GameManager.prototype.canUseBonus = function (type) {
+  if (this.initializing || !this.grid) return false;
   if (type === "undo") return this.canUndo();
 
   return this.bonuses[type] > 0 && !this.isGameTerminated();
@@ -363,7 +429,7 @@ GameManager.prototype.canUseBonus = function (type) {
 
 // Take back the last move (also works on the game over / win screen)
 GameManager.prototype.undo = function () {
-  if (!this.canUndo()) return false;
+  if (!this.canUndo() || !this.canRecordAction()) return false;
 
   var state = this.previous;
 
@@ -377,6 +443,7 @@ GameManager.prototype.undo = function () {
 
   this.prepareTiles(); // render the restored tiles in place instead of popping them in
   this.actuator.continueGame(); // Clear the game won/lost message
+  this.recordAction(["undo"]);
   this.actuate();
 
   return true;
@@ -384,7 +451,7 @@ GameManager.prototype.undo = function () {
 
 // Swap two tiles with different values
 GameManager.prototype.swapTiles = function (first, second) {
-  if (!this.canUseBonus("swap")) return false;
+  if (!this.canUseBonus("swap") || !this.canRecordAction()) return false;
 
   var a = this.grid.cellContent(first);
   var b = this.grid.cellContent(second);
@@ -409,6 +476,7 @@ GameManager.prototype.swapTiles = function (first, second) {
   this.bonuses.swap--;
   this.previous = null; // undo only takes back moves
 
+  this.recordAction(["swap", first.x, first.y, second.x, second.y]);
   this.actuate();
 
   return true;
@@ -416,7 +484,7 @@ GameManager.prototype.swapTiles = function (first, second) {
 
 // Remove every tile with the given value
 GameManager.prototype.removeTilesOfValue = function (value) {
-  if (!this.canUseBonus("remove")) return false;
+  if (!this.canUseBonus("remove") || !this.canRecordAction()) return false;
 
   var self  = this;
   var found = false;
@@ -440,6 +508,7 @@ GameManager.prototype.removeTilesOfValue = function (value) {
   this.bonuses.remove--;
   this.previous = null;
 
+  this.recordAction(["remove", value]);
   this.actuate();
 
   return true;

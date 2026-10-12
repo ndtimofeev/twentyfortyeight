@@ -47,7 +47,7 @@ class Version000100Date20261010000000 extends SimpleMigrationStep {
 			'notnull' => true,
 			'default' => 0,
 		]);
-		$table->setPrimaryKey(['id']);
+		$table->setPrimaryKey(['id'], 'tfe_scores_pk');
 		$table->addUniqueIndex(['user_id'], 'tfe_user_idx');
 		$table->addIndex(['score'], 'tfe_score_idx');
 

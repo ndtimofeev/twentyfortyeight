@@ -42,6 +42,7 @@ class PageController extends Controller {
 			'leaderboard',
 			'server_storage_manager',
 			'bonus_ui',
+			'seeded_random',
 			'game_manager',
 			'application',
 		] as $script) {
@@ -53,7 +54,9 @@ class PageController extends Controller {
 
 		return new TemplateResponse(Application::APP_ID, 'main', [
 			'scoresUrl' => $this->urlGenerator->linkToRoute(Application::APP_ID . '.score.index'),
+			'gamesUrl' => $this->urlGenerator->linkToRoute(Application::APP_ID . '.game.create'),
 			'best' => $best?->getScore() ?? 0,
+			'bestTile' => $best?->getBestTile() ?? 0,
 			'user' => $uid,
 		]);
 	}

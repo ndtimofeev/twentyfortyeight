@@ -30,11 +30,9 @@
 	list-style: none;
 	margin: 0;
 	padding: 0;
-	counter-reset: tfe-rank;
 }
 
 .tfe-leaderboard li {
-	counter-increment: tfe-rank;
 	display: flex;
 	align-items: center;
 	gap: 8px;
@@ -42,15 +40,16 @@
 	border-radius: var(--border-radius-large, 8px);
 }
 
-.tfe-leaderboard li::before {
-	content: counter(tfe-rank);
+.tfe-rank {
 	flex: none;
 	width: 1.8em;
 	text-align: right;
 	color: var(--color-text-maxcontrast);
 }
 
-.tfe-leaderboard li:nth-child(-n+3)::before {
+.tfe-leaderboard li[data-rank="1"] .tfe-rank,
+.tfe-leaderboard li[data-rank="2"] .tfe-rank,
+.tfe-leaderboard li[data-rank="3"] .tfe-rank {
 	color: var(--color-main-text);
 	font-weight: bold;
 }

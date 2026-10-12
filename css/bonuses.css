@@ -29,6 +29,8 @@
 #tfe .bonus-button:focus-visible {
 	background: #a08a76;
 	color: #f9f6f2;
+	outline: 3px solid var(--color-main-text, #776e65);
+	outline-offset: 3px;
 }
 
 /* no sticky hover colour after a tap on touch screens */
@@ -73,6 +75,21 @@
 
 #tfe .game-container.bonus-mode {
 	cursor: pointer;
+}
+
+/* Put the accessible cells above the visual tiles while choosing a bonus. */
+#tfe .game-container.bonus-mode .grid-container {
+	z-index: 30;
+}
+
+#tfe .game-container.bonus-mode .grid-cell:not([data-value="0"]) {
+	background: transparent;
+}
+
+#tfe .game-container.bonus-mode .grid-cell:focus {
+	outline: 3px solid #776e65;
+	outline-offset: -3px;
+	box-shadow: inset 0 0 0 5px #fff;
 }
 
 #tfe .tile.tile-selection {

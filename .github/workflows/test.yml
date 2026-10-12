@@ -1,0 +1,76 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite, sqlite3
+          coverage: none
+      - name: JavaScript syntax
+        run: find js tests scripts -name '*.js' -print0 | xargs -0 -r -n 1 node --check
+      - name: JavaScript tests
+        run: npm test
+      - name: PHP syntax
+        run: find appinfo lib templates tests -name '*.php' -print0 | xargs -0 -r -n 1 php -l
+      - name: Integration helper syntax
+        run: |
+          bash -n scripts/test-nextcloud.sh
+          python3 -m py_compile scripts/smoke-nextcloud.py
+      - name: PHP tests
+        shell: bash
+        run: |
+          php -d zend.assertions=1 -d assert.exception=1 tests/backend.php
+          shopt -s nullglob
+          replay_tests=(tests/replay*.php)
+          test "${#replay_tests[@]}" -gt 0
+          for test_file in "${replay_tests[@]}"; do
+            php -d zend.assertions=1 -d assert.exception=1 "$test_file"
+          done
+      - name: Build installable app archive
+        run: |
+          mkdir -p work/package/twentyfortyeight
+          cp -R appinfo css img js lib templates LICENSE LICENSE-2048.txt README.md work/package/twentyfortyeight/
+          tar -C work/package -czf work/twentyfortyeight.tar.gz twentyfortyeight
+      - uses: actions/upload-artifact@v4
+        with:
+          name: twentyfortyeight
+          path: work/twentyfortyeight.tar.gz
+
+  nextcloud:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        nextcloud: ['31', '32', '33', '34']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install app and exercise authenticated APIs
+        run: |
+          if [ '${{ matrix.nextcloud }}' = '34' ]; then
+            npm install --prefix work/browser --no-save --no-package-lock playwright@1.62.1
+            work/browser/node_modules/.bin/playwright install --with-deps chromium
+            NODE_PATH="$PWD/work/browser/node_modules" \
+              TEST_BROWSER_SMOKE="$PWD/scripts/browser-smoke.js" \
+              bash scripts/test-nextcloud.sh '${{ matrix.nextcloud }}'
+          else
+            bash scripts/test-nextcloud.sh '${{ matrix.nextcloud }}'
+          fi

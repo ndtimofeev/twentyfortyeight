@@ -74,7 +74,7 @@
 #tfe .game-container .game-message .lower {
       display: block;
       margin-top: 59px; }
-#tfe .game-container .game-message a {
+#tfe .game-container .game-message button {
       display: inline-block;
       background: #8f7a66;
       border-radius: 6px;
@@ -84,7 +84,7 @@
       height: 40px;
       line-height: 42px;
       margin-left: 9px; }
-#tfe .game-container .game-message a.keep-playing-button {
+#tfe .game-container .game-message button.keep-playing-button {
         display: none; }
 #tfe .game-container .game-message.game-won {
       background: rgba(237, 194, 46, 0.5);
@@ -460,7 +460,7 @@
 #tfe .game-container .game-message .lower {
         display: block;
         margin-top: 59px; }
-#tfe .game-container .game-message a {
+#tfe .game-container .game-message button {
         display: inline-block;
         background: #8f7a66;
         border-radius: 6px;
@@ -470,7 +470,7 @@
         height: 40px;
         line-height: 42px;
         margin-left: 9px; }
-#tfe .game-container .game-message a.keep-playing-button {
+#tfe .game-container .game-message button.keep-playing-button {
           display: none; }
 #tfe .game-container .game-message.game-won {
         background: rgba(237, 194, 46, 0.5);
@@ -605,3 +605,30 @@
 /* Nextcloud adaptation: tiles 2 and 4 used to inherit the page colour, so pin it for dark themes */
 #tfe .tile .tile-inner {
   color: #776e65; }
+
+/* Keep native keyboard activation and a visible focus ring on game controls. */
+#tfe .restart-button,
+#tfe .game-container .game-message button {
+  border: 0;
+  box-sizing: border-box;
+  font: inherit;
+  font-weight: bold;
+  line-height: 40px;
+  min-height: 40px;
+  margin-top: 0;
+  margin-bottom: 0;
+  cursor: pointer; }
+#tfe .restart-button:focus-visible,
+#tfe .game-container .game-message button:focus-visible {
+  outline: 3px solid var(--color-main-text, #776e65);
+  outline-offset: 3px; }
+#tfe .restart-button:disabled,
+#tfe .game-container .game-message button:disabled {
+  opacity: 0.4;
+  cursor: default; }
+#tfe .tfe-status {
+  margin: 10px 0 0;
+  font-size: 15px;
+  line-height: 1.4; }
+#tfe .tfe-status:empty {
+  display: none; }
