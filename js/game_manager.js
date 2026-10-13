@@ -95,7 +95,7 @@ GameManager.prototype.setup = function () {
 
 GameManager.prototype.initializeState = function (previousState) {
   var session = this.storageManager.session;
-  this.rulesVersion = session ? (session.version || 1) : 3;
+  this.rulesVersion = session ? (session.version || 1) : 4;
   if (this.rulesVersion === 2) {
     this.pendingBonuses = previousState && previousState.pendingBonuses || this.freshPendingBonuses();
   } else {
@@ -419,15 +419,18 @@ GameManager.prototype.freshPendingBonuses = function () {
   return { undo: 0, swap: 0, remove: 0 };
 };
 
-// The state to return to when the last move is undone
-GameManager.prototype.snapshot = function () {
-  return {
+// One reversible action. Only a cancelled Swap/Remove refunds its own charge;
+// move rewards, RNG, historical records and the Undo charge stay outside it.
+GameManager.prototype.snapshot = function (bonus) {
+  var state = {
     grid:  this.grid.serialize(),
     score: this.score,
     moves: this.moves,
     won:   this.won,
     over:  this.over
   };
+  if (this.rulesVersion >= 4 && bonus) state.bonus = bonus;
+  return state;
 };
 
 // Version 3 awards every matching merge, including one repeated after Undo.
@@ -435,7 +438,7 @@ GameManager.prototype.snapshot = function () {
 GameManager.prototype.awardBonus = function (value) {
   var type = BONUS_MILESTONES[value];
 
-  if (!type || (this.rulesVersion !== 3 && this.reached[value])) return;
+  if (!type || (this.rulesVersion < 3 && this.reached[value])) return;
 
   this.reached[value] = true;
   if (this.bonuses[type] < BONUS_MAX) this.bonuses[type]++;
@@ -464,7 +467,7 @@ GameManager.prototype.canUseBonus = function (type) {
   return this.bonuses[type] > 0 && !this.isGameTerminated();
 };
 
-// Take back the last move (also works on the game over / win screen)
+// Take back the last move, or in v4 the last successful Swap/Remove.
 GameManager.prototype.undo = function () {
   if (!this.canUndo() || !this.canRecordAction()) return false;
 
@@ -476,6 +479,9 @@ GameManager.prototype.undo = function () {
   this.won      = state.won;
   this.over     = state.over;
   this.previous = null;
+  if (this.rulesVersion >= 4 && state.bonus) {
+    this.bonuses[state.bonus] = Math.min(BONUS_MAX, this.bonuses[state.bonus] + 1);
+  }
   this.useBonusCharge("undo");
 
   this.prepareTiles(); // render the restored tiles in place instead of popping them in
@@ -494,9 +500,9 @@ GameManager.prototype.swapTiles = function (first, second) {
   var b = this.grid.cellContent(second);
 
   if (!a || !b || a === b || a.value === b.value) return false;
+  var snapshot = this.rulesVersion >= 4 ? this.snapshot("swap") : null;
 
-  // A swap that locks the board would end the game with no way back (undo only
-  // takes back moves), so try it first and refuse it if it does.
+  // Refuse swaps that would leave no legal moves.
   this.grid.cells[first.x][first.y]   = b;
   this.grid.cells[second.x][second.y] = a;
 
@@ -511,7 +517,7 @@ GameManager.prototype.swapTiles = function (first, second) {
   b.updatePosition(first);
 
   this.useBonusCharge("swap");
-  this.previous = null; // undo only takes back moves
+  this.previous = snapshot;
 
   this.recordAction(["swap", first.x, first.y, second.x, second.y]);
   this.actuate();
@@ -525,6 +531,7 @@ GameManager.prototype.removeTilesOfValue = function (value) {
 
   var self  = this;
   var found = false;
+  var snapshot = this.rulesVersion >= 4 ? this.snapshot("remove") : null;
 
   this.prepareTiles();
 
@@ -543,7 +550,7 @@ GameManager.prototype.removeTilesOfValue = function (value) {
   }
 
   this.useBonusCharge("remove");
-  this.previous = null;
+  this.previous = snapshot;
 
   this.recordAction(["remove", value]);
   this.actuate();

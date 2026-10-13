@@ -229,6 +229,7 @@ function generate() {
 	fixtures.push(fixture('verified-after-continue-reload', persisted))
 	addVersion2Fixtures(fixtures)
 	addVersion3Fixtures(fixtures)
+	addVersion4Fixtures(fixtures)
 	return fixtures
 }
 
@@ -353,6 +354,40 @@ function addVersion3Fixtures(fixtures) {
 			}
 			fixtures.push(fixture('v3-undo-repeated-redo-awards-each-merge', env))
 		}
+	}
+}
+
+function addVersion4Fixtures(fixtures) {
+	let env = createGame(1, null, null, 4)
+	apply(env, ['move', 0])
+	for (const type of ['swap', 'remove']) {
+		const action = type === 'swap' ? ['swap', 0, 0, 0, 3] : ['remove', 2]
+		assert.ok(apply(env, action))
+		assert.strictEqual(env.game.previous.bonus, type)
+		fixtures.push(fixture(`v4-${type}-reversible`, env))
+		env = createGame(env.seed, copy(env.stored.state), copy(env.stored), 4)
+		assert.ok(apply(env, ['undo']))
+		assert.strictEqual(env.game.bonuses[type], 2)
+		assert.strictEqual(env.game.previous, null)
+		fixtures.push(fixture(`v4-${type}-cancelled-after-reload`, env))
+	}
+	env = createGame(1, null, null, 4)
+	assert.ok(apply(env, ['remove', 2]))
+	fixtures.push(fixture('v4-empty-board-remove-reversible', env))
+	const rng = env.game.random.state
+	env = createGame(env.seed, copy(env.stored.state), copy(env.stored), 4)
+	assert.ok(apply(env, ['undo']))
+	assert.strictEqual(env.game.random.state, rng)
+	fixtures.push(fixture('v4-empty-board-remove-cancelled-after-reload', env))
+	for (const type of ['swap', 'remove']) {
+		env = createGame(1, null, null, 4)
+		apply(env, ['move', 0])
+		const actions = type === 'swap' ? [['swap', 0, 0, 0, 3], ['swap', 0, 0, 0, 3]] : [['remove', 2], ['remove', 4]]
+		for (const action of actions) assert.ok(apply(env, action))
+		assert.strictEqual(env.game.bonuses[type], 0)
+		assert.ok(apply(env, ['undo']))
+		assert.strictEqual(env.game.bonuses[type], 1)
+		fixtures.push(fixture(`v4-${type}-last-charge-restored`, env))
 	}
 }
 

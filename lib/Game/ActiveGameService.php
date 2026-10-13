@@ -31,7 +31,7 @@ class ActiveGameService {
 				continue;
 			}
 			$actions = json_decode($row['actions'], true, 512, JSON_THROW_ON_ERROR);
-			if ($session['version'] < 3) {
+			if ($session['version'] < GameEngine::VERSION) {
 				$session = $this->sessions->upgrade($uid, $row['session_token'], $actions);
 				$upgraded = $this->sessions->verify($uid, $session['token'], $actions, true);
 				$game = $this->game($upgraded, $actions, $row['revision'] + 1);
@@ -86,18 +86,18 @@ class ActiveGameService {
 		throw new ActiveGameConflict('Another device changed the active game. Try again.', $winner);
 	}
 
-	public function save(string $uid, string $token, array $actions, int $revision, string $upgradeFrom = ''): array {
+	public function save(string $uid, string $token, array $actions, int $revision, string $upgradeFrom = '', string $sourceSession = ''): array {
 		if ($revision < 0 || $revision === PHP_INT_MAX) {
 			throw new InvalidArgumentException('Invalid game revision');
 		}
 		if ($upgradeFrom !== '') {
-			return $this->promoteLegacyTail($uid, $token, $actions, $revision, $upgradeFrom);
+			return $this->promoteLegacyTail($uid, $token, $actions, $revision, $upgradeFrom, $sourceSession);
 		}
 		$verified = $this->sessions->verify($uid, $token, $actions, true);
 		$current = $this->get($uid);
 		if ($current === null) {
 			// Adopt signed games previously stored only in this browser during upgrade.
-			if ($verified['session']['version'] < 3) {
+			if ($verified['session']['version'] < GameEngine::VERSION) {
 				$session = $this->sessions->upgrade($uid, $token, $actions);
 				$verified = $this->sessions->verify($uid, $session['token'], $actions, true);
 			}
@@ -128,16 +128,20 @@ class ActiveGameService {
 		throw new ActiveGameConflict('Another device saved moves at the same time.', $winner);
 	}
 
-	private function promoteLegacyTail(string $uid, string $token, array $actions, int $revision, string $previousToken): array {
+	private function promoteLegacyTail(string $uid, string $token, array $actions, int $revision, string $previousToken, string $sourceSession): array {
 		$target = $this->sessions->session($uid, $token);
-		if ($target['version'] !== 3 || ($target['previousToken'] ?? null) !== $previousToken
+		if ($target['version'] !== GameEngine::VERSION || ($target['previousToken'] ?? null) !== $previousToken
 			|| !array_is_list($actions) || count($actions) > GameEngine::MAX_ACTIONS || count($actions) < $target['cutover']) {
 			throw new InvalidArgumentException('Invalid legacy game extension');
 		}
+		$source = $sourceSession === '' ? $previousToken : $sourceSession;
+		if ($source !== $previousToken && !in_array($source, $target['ancestorTokens'] ?? [], true)) {
+			throw new InvalidArgumentException('Invalid source game session');
+		}
 		$current = $this->get($uid);
-		if ($current === null || $current['session']['version'] !== 3
-			|| ($current['session']['previousToken'] ?? null) !== $previousToken || $current['session']['seed'] !== $target['seed']
-			|| count($current['actions']) !== $current['session']['cutover']) {
+		if ($current === null || $current['session']['version'] !== GameEngine::VERSION
+			|| $current['session']['seed'] !== $target['seed'] || count($current['actions']) !== ($current['session']['cutover'] ?? null)
+			|| !$this->canPromoteFrom($target, $source) || !$this->canPromoteFrom($current['session'], $source)) {
 			throw new ActiveGameConflict('The game already has new moves under the current rules.', $current);
 		}
 		if ($current['actions'] === $actions) {
@@ -147,19 +151,25 @@ class ActiveGameService {
 		if (!$this->isPrefix($current['actions'], $actions) || $current['revision'] !== $revision) {
 			throw new ActiveGameConflict('Another device has newer or different moves.', $current);
 		}
-		// Validate the full tail under its OLD rules before interpreting any v3 suffix.
-		$session = $this->sessions->extendUpgrade($uid, $current['session']['token'], $previousToken, $actions);
+		// Validate the full tail, including every older cutover, before the new suffix.
+		$session = $this->sessions->extendUpgrade($uid, $current['session']['token'], $current['session']['previousToken'], $actions, $sourceSession);
 		$verified = $this->sessions->verify($uid, $session['token'], $actions, true);
 		$saved = $this->game($verified, $actions, $revision + 1);
 		if ($this->mapper->replace($uid, $current['session']['token'], $revision, $saved, $this->time->getTime())) {
 			return $saved;
 		}
 		$winner = $this->get($uid);
-		if ($winner !== null && ($winner['session']['previousToken'] ?? null) === $previousToken
+		if ($winner !== null && $this->canPromoteFrom($winner['session'], $source)
 			&& ($winner['session']['cutover'] ?? null) === count($actions) && $winner['actions'] === $actions) {
 			return $winner;
 		}
 		throw new ActiveGameConflict('Another device saved moves at the same time.', $winner);
+	}
+
+	private function canPromoteFrom(array $session, string $source): bool {
+		if (($session['previousToken'] ?? null) === $source) return true;
+		return in_array($source, $session['ancestorTokens'] ?? [], true)
+			&& (!isset($session['previousCutover']) || $session['previousCutover'] === $session['cutover']);
 	}
 
 	private function game(array $verified, array $actions, int $revision): array {

@@ -14,7 +14,8 @@ of the instance.
   another browser or device resumes that game. Browser `localStorage`, separated
   by user and installation URL, also keeps a copy for offline play.
 * **Bonuses** (buttons under the board, two charges each):
-  * *Undo* takes back the last move (one level); each new 128 tile earns a charge.
+  * *Undo* takes back the last move, Swap or Remove (one level); each new 128 tile
+    earns a charge.
   * *Swap* trades two tiles with different values; each new 256 tile earns a charge.
     A swap that would leave no moves is refused.
   * *Remove* deletes all tiles with the value of the picked tile; one more charge
@@ -23,11 +24,12 @@ of the instance.
   Each qualifying merge adds one charge when fewer than two remain. With two
   charges, the reward is discarded; there is no reserve. Two qualifying merges
   in one move are handled separately, so a supply of zero can become two.
-  Undo spends one charge and does not restore old bonus counts; repeating a
+  Undo spends one charge. Cancelling Swap or Remove returns its spent charge;
+  cancelling a move keeps the charges earned by its merges. Repeating a
   qualifying merge after Undo earns a charge again if there is room.
-  Swap and Remove are not moves: no new tile appears, and they
-  clear the undo snapshot. If Remove clears the entire board, two starting
-  tiles appear so the game can continue. On the game over / win screen only
+  Swap and Remove are not moves: no new tile appears, and their pre-action
+  board is saved for Undo. Undo cannot undo itself. If Remove clears the entire
+  board, two starting tiles appear so the game can continue. On the game over / win screen only
   Undo works. Charges, the undo snapshot, the biggest tile and
   the Keep going choice are saved with the running game.
 * All controls work with a keyboard. In Swap/Remove mode, arrows select a cell,
@@ -41,7 +43,8 @@ user. The browser records successful moves and bonus actions. When submitted,
 the server reproduces the game with the same unsigned 32-bit xorshift generator
 and computes the score, tile record and move count itself. Client-reported
 scores and board contents are never used for the leaderboard. Undo retains a
-previously achieved record, but does not restore bonus charges or RNG state.
+previously achieved record and the forward RNG state. Only a cancelled
+Swap/Remove refunds its own charge; Undo always spends one charge.
 
 `GET /api/games` returns `{game: null}` or the active game. `POST /api/games`
 ensures an active game exists; `{restart: true}` explicitly starts a new one.
@@ -60,18 +63,23 @@ limited. A game token lasts 90 days; a game is limited to 50,000 successful
 actions. Deleting an account revokes its tokens and removes its records and
 active game.
 
-Rules version 3 awards charges for every qualifying merge. Version 1 and 2
-proofs still replay with their original rules, so older pending score submissions
-remain verifiable. Loading an older active game upgrades its future actions to
-version 3. Its seed, board, score, ready charges and history are preserved; the
+Rules version 4 also allows Undo after Swap/Remove and refunds the cancelled
+bonus. Rules version 3 awards charges for every qualifying merge. Versions 1, 2
+and 3 proofs still replay with their original rules, so older pending score
+submissions remain verifiable. Loading an older active game upgrades its future actions to
+version 4. Its seed, board, score, ready charges and history are preserved; the
 version 2 reserve is removed. The signed replacement session includes
 `previousToken` and `cutover`, the number of actions verified under the old rules.
-An upgrade from a version 2 session linked to version 1 also includes
-`ancestorToken`, so an older browser can carry its compatible history forward.
+Version-4 sessions also include `ancestorTokens` when their signed parent has
+older ancestors, so offline histories from versions 1, 2 or 3 remain linked.
+Existing version-3 proofs keep their original `ancestorToken` metadata.
 Compatible unsent old-rule actions are uploaded with `upgradeFrom: oldToken`
-before the browser switches rules. The server may extend the cutover only while
-no version 3 actions have been saved. Otherwise, the current server game wins
-and the older local history is backed up.
+and `sourceSession` identifying their original signed session before the browser
+switches rules. When a v1/v2 tail crosses an unplayed v3 boundary, both signed
+cutovers are extended. `previousCutover` exposes that earlier boundary; a suffix
+already played under v3 prevents its reinterpretation. The server may extend
+the cutover only while no actions under the new rules have been saved. Otherwise,
+the current server game wins and the older local history is backed up.
 
 A connection is required to start a new verified game. An existing saved game
 can continue offline. Successful actions are saved after a short debounce,
@@ -121,6 +129,12 @@ its original rules until it reconnects and completes the upgrade.
 
 Version 0.5.1 protects local checkpoints from concurrent tabs and releases the
 old migration's input lock when another device replaces the active game.
+
+Version 0.6.0 introduces rules version 4. Newly used Swap and Remove can be
+cancelled with Undo, returning their charge. Existing signed histories retain
+every previous rules cutover and preserve the old Undo snapshot at upgrade;
+the new bonus snapshots apply to actions played under version 4. The database
+migration widens the active-session token to fit the complete signed chain.
 
 ## Layout
 

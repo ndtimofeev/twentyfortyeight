@@ -13,6 +13,7 @@ use OCP\IConfig;
 /** Signed, stateless session proofs bound to the authenticated Nextcloud user. */
 final class GameSession {
 	public const MAX_AGE = 90 * 24 * 60 * 60;
+	public const MAX_TOKEN_LENGTH = 1024;
 	private const CLOCK_SKEW = 300;
 
 	public function __construct(
@@ -28,7 +29,7 @@ final class GameSession {
 	/** Preserve the complete legacy prefix, then use the current rules. */
 	public function upgrade(string $uid, string $token, array $actions): array {
 		$data = $this->decodeToken($uid, $token);
-		if (!in_array($data['v'], [1, 2], true)) {
+		if ($data['v'] >= GameEngine::VERSION) {
 			throw new InvalidArgumentException('Only legacy games can be upgraded');
 		}
 		$this->replayData($data, $actions);
@@ -41,10 +42,27 @@ final class GameSession {
 	}
 
 	/** An authenticated live child can finish its parent's offline history. */
-	public function extendUpgrade(string $uid, string $token, string $previousToken, array $actions): array {
+	public function extendUpgrade(string $uid, string $token, string $previousToken, array $actions, string $sourceSession = ''): array {
 		$data = $this->decodeToken($uid, $token);
-		if ($data['v'] !== 3 || ($data['p'] ?? null) !== $previousToken || count($actions) < $data['n']) {
+		if ($data['v'] < 3 || ($data['p'] ?? null) !== $previousToken || count($actions) < $data['n']) {
 			throw new InvalidArgumentException('Invalid legacy game extension');
+		}
+		if ($sourceSession !== '' && $sourceSession !== $previousToken) {
+			$metadata = $this->metadata($token, $data);
+			if (!in_array($sourceSession, $metadata['ancestorTokens'] ?? [], true)) {
+				throw new InvalidArgumentException('Invalid source game session');
+			}
+			$parent = $data['_parent'];
+			if ($parent['v'] === 3 && isset($parent['p'])) {
+				if ($data['n'] !== $parent['n']) {
+					throw new InvalidArgumentException('The parent already has newer-rules actions');
+				}
+				// No v3/v4 suffix has been played. Extend the earlier boundary too,
+				// keeping the v1/v2 tail's original canonical rules and identity.
+				$this->replayData($parent['_parent'], $actions);
+				$renewed = $this->issueForSeed($uid, $data['s'], $parent['p'], count($actions), 3);
+				return $this->issueForSeed($uid, $data['s'], $renewed['token'], count($actions));
+			}
 		}
 		$this->replayData($data['_parent'], $actions);
 		return $this->issueForSeed($uid, $data['s'], $previousToken, count($actions));
@@ -67,15 +85,15 @@ final class GameSession {
 		return $result;
 	}
 
-	private function issueForSeed(string $uid, int $seed, ?string $previousToken = null, ?int $cutover = null): array {
-		$data = ['v' => GameEngine::VERSION, 's' => $seed, 'iat' => $this->time->getTime()];
+	private function issueForSeed(string $uid, int $seed, ?string $previousToken = null, ?int $cutover = null, int $version = GameEngine::VERSION): array {
+		$data = ['v' => $version, 's' => $seed, 'iat' => $this->time->getTime()];
 		if ($previousToken !== null) {
 			$data['p'] = $previousToken;
 			$data['n'] = $cutover;
 		}
 		$payload = $this->encode(json_encode($data, JSON_THROW_ON_ERROR));
 		$token = $payload . '.' . $this->signature($uid, $payload);
-		if (strlen($token) > 512) {
+		if (strlen($token) > self::MAX_TOKEN_LENGTH) {
 			throw new InvalidArgumentException('Upgraded game session is too large');
 		}
 		return $this->session($uid, $token);
@@ -92,6 +110,14 @@ final class GameSession {
 		if ($data['v'] === 3 && ($data['_parent']['v'] ?? null) === 2 && isset($data['_parent']['p'])) {
 			$session['ancestorToken'] = $data['_parent']['p'];
 		}
+		if ($data['v'] >= 4) {
+			if (isset($data['_parent']['n'])) $session['previousCutover'] = $data['_parent']['n'];
+			$ancestor = $data['_parent'] ?? [];
+			while (isset($ancestor['p'])) {
+				$session['ancestorTokens'][] = $ancestor['p'];
+				$ancestor = $ancestor['_parent'];
+			}
+		}
 		return $session;
 	}
 
@@ -100,13 +126,12 @@ final class GameSession {
 		if (!array_is_list($actions) || count($actions) > GameEngine::MAX_ACTIONS) {
 			throw new InvalidArgumentException('Invalid action list or game is too long');
 		}
-		if ($data['v'] === 3 && isset($data['p'])) {
+		if ($data['v'] >= 3 && isset($data['p'])) {
 			if (count($actions) < $data['n']) {
 				throw new InvalidArgumentException('Game history is shorter than its rules cutover');
 			}
-			$engine = new GameEngine($data['s'], $data['_parent']['v']);
-			$engine->replay(array_slice($actions, 0, $data['n']));
-			$engine->upgradeRules();
+			$engine = $this->replayData($data['_parent'], array_slice($actions, 0, $data['n']));
+			$engine->upgradeRules($data['v']);
 			$engine->replay(array_slice($actions, $data['n']));
 		} else {
 			$engine = new GameEngine($data['s'], $data['v']);
@@ -117,7 +142,7 @@ final class GameSession {
 
 	/** Parent metadata is signed too; an upgraded token cannot claim another game. */
 	private function decodeToken(string $uid, string $token, bool $checkAge = true, int $depth = 0): array {
-		if ($depth > 2 || strlen($token) > 512 || !preg_match('/^([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]{43})$/D', $token, $parts)
+		if ($depth > 3 || strlen($token) > self::MAX_TOKEN_LENGTH || !preg_match('/^([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]{43})$/D', $token, $parts)
 			|| !hash_equals($this->signature($uid, $parts[1]), $parts[2])) {
 			throw new InvalidArgumentException('Invalid game session');
 		}
@@ -127,21 +152,22 @@ final class GameSession {
 		} catch (JsonException) {
 			throw new InvalidArgumentException('Invalid game session');
 		}
-		if (!is_array($data) || !in_array($data['v'] ?? null, [1, 2, 3], true)
+		if (!is_array($data) || !in_array($data['v'] ?? null, [1, 2, 3, 4], true)
 			|| !isset($data['s'], $data['iat']) || !is_int($data['s']) || !is_int($data['iat'])
 			|| $data['s'] < 1 || $data['s'] > 0xffffffff
-			|| count($data) !== (array_key_exists('p', $data) ? ($data['v'] === 3 ? 5 : 4) : 3)) {
+			|| count($data) !== (array_key_exists('p', $data) ? ($data['v'] >= 3 ? 5 : 4) : 3)) {
 			throw new InvalidArgumentException('Unsupported or invalid game session');
 		}
 		if (array_key_exists('p', $data)) {
-			if (!in_array($data['v'], [2, 3], true) || !is_string($data['p'])
-				|| ($data['v'] === 3 && (!isset($data['n']) || !is_int($data['n']) || $data['n'] < 0 || $data['n'] > GameEngine::MAX_ACTIONS))) {
+			if (!in_array($data['v'], [2, 3, 4], true) || !is_string($data['p'])
+				|| ($data['v'] >= 3 && (!isset($data['n']) || !is_int($data['n']) || $data['n'] < 0 || $data['n'] > GameEngine::MAX_ACTIONS))) {
 				throw new InvalidArgumentException('Invalid previous game session');
 			}
 			// The new token has its own lifetime. Its signed parent must be a
 			// genuine old token for this UID/seed, even after the parent's expiry.
 			$parent = $this->decodeToken($uid, $data['p'], false, $depth + 1);
-			if (!in_array($parent['v'], $data['v'] === 2 ? [1] : [1, 2], true) || $parent['s'] !== $data['s']) {
+			if ($parent['v'] >= $data['v'] || $parent['s'] !== $data['s']
+				|| (isset($parent['n']) && $data['n'] < $parent['n'])) {
 				throw new InvalidArgumentException('Invalid previous game session');
 			}
 			$data['_parent'] = $parent;

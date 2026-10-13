@@ -109,7 +109,7 @@ def main():
     assert one.request("/api/games")["game"] == initial
     assert isinstance(initial["revision"], int) and initial["actions"] == []
     session = initial["session"]
-    assert session["version"] == 3 and 1 <= session["seed"] <= 0xFFFFFFFF
+    assert session["version"] == 4 and 1 <= session["seed"] <= 0xFFFFFFFF
     assert "pendingBonuses" not in initial["state"]
     assert isinstance(session["token"], str) and "." in session["token"]
     forged = {"session": "", "actions": [], "score": 999999, "bestTile": 131072, "moves": 1}

@@ -419,3 +419,49 @@ test('immutable prefix compaction cannot remove another tab\'s concurrent longer
   assert.deepEqual(plain(returning.player.serialize()), plain(second.player.serialize()));
   takeMove(returning);
 });
+
+test('v3 promotion freezes old bonus actions and v4 refunds only the new bonus charge', async () => {
+  const legacy = { token: 'legacy-3-bonus', seed: 1, version: 3 };
+  const store = { game: packet(legacy) }, promotion = deferred();
+  let promotedBody;
+  const env = load({ store, fetch(call) {
+    if (call.init.method === 'PUT') { promotedBody = call.body; return promotion.promise; }
+  } });
+  await settle();
+  env.player.move(0);
+  const exchange = () => {
+    const tiles = env.player.grid.cells.flat().filter(Boolean), a = tiles[0];
+    const b = tiles.find(tile => tile.value !== a.value);
+    assert.ok(b);
+    assert.equal(env.player.swapTiles({ x: a.x, y: a.y }, { x: b.x, y: b.y }), true);
+  };
+  exchange();
+  const history = plain(env.manager.actions), oldState = packet(legacy, history, 1).state;
+  assert.equal(env.player.canUndo(), false);
+  const child = { token: 'initial-4-bonus', seed: 1, version: 4, previousToken: legacy.token, cutover: 0 };
+  const receiving = env.manager.receiveGame(packet(child), ++env.manager.requestSequence, true);
+  await settle();
+  assert.equal(env.manager.gameTransitioning, true);
+  assert.equal(env.player.canRecordAction(), false);
+  assert.equal(promotedBody.upgradeFrom, legacy.token);
+  assert.deepEqual(promotedBody.actions, history);
+  const upgraded = { ...child, token: 'promoted-4-bonus', cutover: history.length };
+  store.game = { session: upgraded, actions: history, revision: 2, state: oldState };
+  promotion.resolve(response({ game: store.game }));
+  await receiving;
+  assert.equal(env.player.rulesVersion, 4);
+  assert.equal(env.manager.gameTransitioning, false);
+  assert.equal(env.player.previous, null, 'the old bonus retains its original Undo behavior');
+  assert.equal(env.player.bonuses.swap, 1);
+  exchange();
+  assert.equal(env.player.bonuses.swap, 0);
+  assert.equal(env.player.previous.bonus, 'swap');
+  assert.equal(env.player.undo(), true);
+  assert.equal(env.player.bonuses.swap, 1, 'only the v4 action is refunded');
+  assert.equal(env.player.bonuses.undo, 1);
+  const returning = load({ store, shared: env.shared, fetch() { return Promise.reject(new TypeError('offline')); } });
+  await settle();
+  assert.equal(returning.player.rulesVersion, 4);
+  assert.deepEqual(plain(returning.player.serialize()), plain(env.player.serialize()));
+  assert.deepEqual(plain(returning.manager.actions), plain(env.manager.actions));
+});

@@ -12,6 +12,8 @@ require dirname(__DIR__, 3) . '/lib/base.php';
 use OCA\TwentyFortyEight\AppInfo\Application;
 use OCA\TwentyFortyEight\Db\ActiveGameMapper;
 use OCA\TwentyFortyEight\Game\GameEngine;
+use OCA\TwentyFortyEight\Game\GameSession;
+use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IConfig;
 use OCP\IDBConnection;
 use OCP\IUserManager;
@@ -138,6 +140,48 @@ foreach ([
 	$local['session'] = $parent ?? $session;
 	$local['actions'] = $tail;
 	$local['revision'] = 4;
+	$result[] = ['username' => $uid, 'localState' => $local, 'expectedState' => $expected];
+}
+// Native v3 and the longest existing v1/v2/v3 chain both have a genuine
+// offline Undo+Remove tail. Replaying that tail as v4 would wrongly leave a
+// reversible Remove snapshot, instead of preserving the old v3 boundary.
+$sessions = new GameSession($config, \OC::$server->get(ITimeFactory::class));
+$sign = static function (string $uid, array $data) use ($encode, $config): string {
+	$generation = $config->getAppValue(Application::APP_ID, hash('sha256', 'game_generation_' . $uid), '');
+	$payload = $encode(json_encode($data, JSON_THROW_ON_ERROR));
+	return $payload . '.' . $encode(hash_hmac('sha256', Application::APP_ID . "\0" . $uid . "\0" . $generation . "\0" . $payload,
+		(string)$config->getSystemValue('secret', ''), true));
+};
+foreach (['smoke-legacy-v3', 'smoke-legacy-chain', 'smoke-legacy-chain-v2'] as $uid) {
+	$data = ['v' => 3, 's' => $seed, 'iat' => time()];
+	if ($uid !== 'smoke-legacy-v3') {
+		$p1 = $sign($uid, ['v' => 1, 's' => $seed, 'iat' => time()]);
+		$p2 = $sign($uid, ['v' => 2, 's' => $seed, 'iat' => time(), 'p' => $p1]);
+		$data['p'] = $p2;
+		$data['n'] = count($prefix);
+	}
+	$token = $sign($uid, $data);
+	$server = $sessions->verify($uid, $token, $prefix, true);
+	if (!$mapper->insert($uid, ['session' => $server['session'], 'actions' => $prefix,
+		'revision' => 4, 'state' => $server['savedState']], time())) throw new RuntimeException('Could not seed v3 game');
+	$source = $token;
+	$expectedUndo = 1;
+	$tail = [...$prefix, ['undo'], ['remove', 2]];
+	if ($uid === 'smoke-legacy-chain-v2') {
+		$source = $p2;
+		$tail = [...$prefix, ['undo']];
+		for ($cycle = 0; $cycle < 2; $cycle++) $tail = [...non128Move($seed, $tail), ['undo']];
+		$expectedUndo = 0;
+		$upgraded = $sessions->upgrade($uid, $token, $prefix);
+		$upgraded = $sessions->extendUpgrade($uid, $upgraded['token'], $token, $tail, $source);
+	} else $upgraded = $sessions->upgrade($uid, $token, $tail);
+	$old = $sessions->verify($uid, $source, $tail, true);
+	$expected = $sessions->verify($uid, $upgraded['token'], $tail, true)['savedState'];
+	$original = $old['savedState'];
+	unset($original['pendingBonuses']);
+	if ($old['savedState']['previous'] !== null || $old['savedState']['bonuses']['undo'] !== $expectedUndo
+		|| json_encode($expected) !== json_encode($original)) throw new RuntimeException('The nested cutover must preserve its complete state');
+	$local = [...$old['savedState'], 'session' => $old['session'], 'actions' => $tail, 'revision' => 4];
 	$result[] = ['username' => $uid, 'localState' => $local, 'expectedState' => $expected];
 }
 echo json_encode(['fixtures' => $result], JSON_THROW_ON_ERROR);

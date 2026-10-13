@@ -238,6 +238,13 @@ namespace TwentyFortyEightTests {
 		public array $primary = [];
 		public array $indexes = [];
 		public function addColumn(string $name, string $type, array $options): void { $this->columns[$name] = [$type, $options]; }
+		public function getColumn(string $name): object {
+			return new class($this, $name) {
+				public function __construct(private Table $table, private string $name) {}
+				public function getLength(): ?int { return $this->table->columns[$this->name][1]['length'] ?? null; }
+				public function setLength(int $length): void { $this->table->columns[$this->name][1]['length'] = $length; }
+			};
+		}
 		public function setPrimaryKey(array $fields): void { $this->primary = $fields; }
 		public function addUniqueIndex(array $fields, string $name): void { $this->indexes[$name] = [$fields, true]; }
 		public function addIndex(array $fields, string $name): void { $this->indexes[$name] = [$fields, false]; }
@@ -245,6 +252,7 @@ namespace TwentyFortyEightTests {
 	class Schema implements \OCP\DB\ISchemaWrapper {
 		public array $tables = [];
 		public function hasTable(string $name): bool { return isset($this->tables[$name]); }
+		public function getTable(string $name): Table { return $this->tables[$name]; }
 		public function createTable(string $name): Table { return $this->tables[$name] = new Table(); }
 		public function apply(Database $db): void {
 			foreach ($this->tables as $name => $table) {

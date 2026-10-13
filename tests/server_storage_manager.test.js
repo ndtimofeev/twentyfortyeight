@@ -1414,3 +1414,34 @@ test('New Game supersedes a delayed v3 cutover extension without changing the ne
   assert.equal(env.manager.actions.length, 0);
   assert.equal(env.manager.gameTransitioning, false);
 });
+
+test('v4 refuses an ancestor tail after its signed v3 parent already played newer rules', async () => {
+  const session4 = { token: 'v4-after-played-v3', seed: 123, version: 4,
+    previousToken: 'signed-v3', ancestorTokens: ['signed-v2'], cutover: 2, previousCutover: 1 };
+  const history = [['move', 3], ['move', 0], ['move', 1]];
+  const canonical = game(session4, history.slice(0, 2), 8, state(32, 8, 777));
+  const env = load({ serverGame: canonical });
+  const local = localGame(game(v2Session('signed-v2'), history, 7, v2Board(48, 8, 999)));
+  const restored = await env.manager.prepareGame(local);
+  assert.equal(restored.session.token, session4.token);
+  assert.deepEqual(plain(restored.actions), canonical.actions);
+  assert.equal(activePuts(env).length, 0, 'the v3 boundary must not move after its own suffix');
+});
+
+test('a longer ancestor draft cannot reinterpret a locally played v4 suffix', async () => {
+  const session4 = { token: 'v4-with-offline-suffix', seed: 123, version: 4,
+    previousToken: 'signed-v3', ancestorTokens: ['signed-v2'], cutover: 1, previousCutover: 1 };
+  const history = [['move', 3], ['move', 0], ['move', 1]];
+  const canonical = game(session4, history.slice(0, 1), 8, state(8, 4, 111));
+  const env = load({ serverGame: canonical });
+  const local4 = localGame(game(session4, history.slice(0, 2), 8, state(24, 8, 777)));
+  const ancestor = localGame(game(v2Session('signed-v2'), history, 7, v2Board(32, 8, 999)));
+  env.shared.set(env.manager.draftKey + 'older-version', JSON.stringify({ state: ancestor, savedAt: 100001 }));
+  const restored = await env.manager.prepareGame(local4);
+  assert.equal(restored.session.token, session4.token);
+  assert.deepEqual(plain(restored.actions), local4.actions);
+  assert.equal(restored.randomState, 777);
+  await env.advance(0);
+  assert.equal(activePuts(env)[0].body.upgradeFrom, undefined, 'new v4 actions save as v4 rather than extending old rules');
+  assert.deepEqual(activePuts(env)[0].body.actions, local4.actions);
+});

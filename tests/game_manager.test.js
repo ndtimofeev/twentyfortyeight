@@ -202,9 +202,9 @@ test('v1 undo and redo of a merge does not farm charges', () => {
 	assert.strictEqual(game.undo(), false)
 })
 
-test('new local games use v3 while versioned sessions retain their original rules', () => {
+test('new local games use v4 while versioned sessions retain their original rules', () => {
 	const local = load().game
-	assert.strictEqual(local.rulesVersion, 3)
+	assert.strictEqual(local.rulesVersion, 4)
 	assert.strictEqual(Object.hasOwn(local.serialize(), 'pendingBonuses'), false)
 	const legacy = load(null, { seed: 42 }).game
 	assert.strictEqual(legacy.rulesVersion, 1)
@@ -217,6 +217,7 @@ test('new local games use v3 while versioned sessions retain their original rule
 	assert.strictEqual(banked.rulesVersion, 2)
 	assert.deepStrictEqual(copy(banked.serialize().pendingBonuses), { undo: 0, swap: 0, remove: 0 })
 	assert.strictEqual(load(null, { seed: 42, version: 3 }).game.rulesVersion, 3)
+	assert.strictEqual(load(null, { seed: 42, version: 4 }).game.rulesVersion, 4)
 })
 
 test('v2 banks each first milestone at the full cap and redeems it on one successful use', () => {
@@ -504,8 +505,8 @@ test('swap rejects equal values, empty cells and the same tile', () => {
 	assert.strictEqual(game.bonuses.swap, 2)
 })
 
-test('swap and remove make undo unavailable until the next move', () => {
-	const env = load()
+test('legacy v3 swap and remove make undo unavailable until the next move', () => {
+	const env = load(null, { seed: 42, version: 3 })
 	const { game } = env
 	setBoard(env, withRow(0, [2, 4, 0, 0]))
 	game.move(2)
@@ -776,8 +777,8 @@ test('restart initializes a fresh deterministic game from the new server seed', 
 	assert.deepStrictEqual(env.stored.actions, [])
 })
 
-test('only successful actions are logged, including undo, swap, remove and continuation', () => {
-	const env = load()
+test('legacy v3 logs only successful move and bonus actions', () => {
+	const env = load(null, { seed: 42, version: 3 })
 	const game = env.game
 	setBoard(env, withRow(0, [2, 4, 0, 0]))
 	game.move(LEFT) // already aligned: no-op

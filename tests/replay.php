@@ -80,10 +80,10 @@ namespace {
 	foreach ([0, -1, 4294967296] as $seed) {
 		rejects(fn() => new GameEngine($seed), 'Invalid seed ' . $seed);
 	}
-	foreach ([0, 4, -1] as $version) {
+	foreach ([0, 5, -1] as $version) {
 		rejects(fn() => new GameEngine(1, $version), 'Unsupported rules version ' . $version);
 	}
-	same(3, (new GameEngine(1))->getRulesVersion(), 'New games use version 3');
+	same(4, (new GameEngine(1))->getRulesVersion(), 'New games use version 4');
 	same(1, (new GameEngine(1, 1))->getRulesVersion(), 'Legacy engine retains version 1');
 	same(false, array_key_exists('pendingBonuses', (new GameEngine(1, 1))->state()), 'Version 1 diagnostics remain unchanged');
 	same(false, array_key_exists('pendingBonuses', (new GameEngine(1, 1))->savedState()), 'Version 1 saved state remains unchanged');
@@ -108,12 +108,12 @@ namespace {
 	same(435756210, $result['state']['rng'], 'Respawn consumes two pairs of draws');
 	same(1, $result['state']['bonuses']['remove'], 'Remove charge spent');
 	same(0, $result['state']['moves'], 'Remove is not a move');
-	$result = (new GameEngine(1))->replay([['move', 0], ['swap', 0, 0, 0, 3]]);
+	$result = (new GameEngine(1, 3))->replay([['move', 0], ['swap', 0, 0, 0, 3]]);
 	same(2, $result['state']['board'][0][0], 'Swap moves lower tile');
 	same(4, $result['state']['board'][0][3], 'Swap moves larger tile');
 	same(false, $result['state']['canUndo'], 'Swap invalidates previous move');
 	same(745495504, $result['state']['rng'], 'Swap consumes no random draws');
-	$result = (new GameEngine(1))->replay([['move', 0], ['remove', 4]]);
+	$result = (new GameEngine(1, 3))->replay([['move', 0], ['remove', 4]]);
 	same(4, $result['bestTileEver'], 'Removing largest tile preserves the record');
 	same(false, $result['state']['canUndo'], 'Remove invalidates previous move');
 
@@ -230,10 +230,10 @@ namespace {
 		$game->replay([['move', 3]]);
 		$before = $game->savedState();
 		unset($before['pendingBonuses']);
-		$game->upgradeRules();
+		$game->upgradeRules(3);
 		same(3, $game->getRulesVersion(), 'Rules upgrade selects version 3');
 		same(json_encode($before), json_encode($game->savedState()), 'Rules upgrade preserves ready charges, board, previous state, RNG and statistics');
-		$game->upgradeRules();
+		$game->upgradeRules(3);
 		same(json_encode($before), json_encode($game->savedState()), 'Rules upgrade is idempotent');
 		$result = $game->replay([['undo']]);
 		same(1, $result['state']['bonuses']['undo'], 'Version 3 cutover discards any old reserve instead of redeeming it');
@@ -276,7 +276,7 @@ namespace {
 	};
 	$sessions = new GameSession($config, $time);
 	$issued = $sessions->issue('alice');
-	same(3, $issued['version'], 'New sessions use protocol version 3');
+	same(4, $issued['version'], 'New sessions use protocol version 4');
 	same(true, $issued['seed'] >= 1 && $issued['seed'] <= 0xffffffff, 'Random seed fits unsigned 32 bits');
 	$verified = $sessions->verify('alice', $issued['token'], []);
 	same(json_encode((new GameEngine($issued['seed']))->replay([])), json_encode($verified), 'Valid signature replays the signed seed');
@@ -305,7 +305,7 @@ namespace {
 		return $payload . '.' . $encode(hash_hmac('sha256', "twentyfortyeight\0alice\0\0" . $payload, 'test-secret', true));
 	}
 	$time->now = 1_800_000_000;
-	foreach ([['v' => 4, 's' => 1, 'iat' => $time->now], ['v' => 1, 's' => 0, 'iat' => $time->now], ['v' => 1, 's' => '1', 'iat' => $time->now], ['v' => 1, 's' => 1, 'iat' => (string)$time->now], ['v' => 1, 's' => 1, 'iat' => $time->now, 'extra' => true]] as $payload) {
+	foreach ([['v' => 5, 's' => 1, 'iat' => $time->now], ['v' => 1, 's' => 0, 'iat' => $time->now], ['v' => 1, 's' => '1', 'iat' => $time->now], ['v' => 1, 's' => 1, 'iat' => (string)$time->now], ['v' => 1, 's' => 1, 'iat' => $time->now, 'extra' => true]] as $payload) {
 		rejects(fn() => $sessions->verify('alice', tokenFor($payload), []), 'Signed payload still validates schema');
 	}
 	$sessions->revoke('bob');
@@ -356,7 +356,7 @@ namespace {
 		if ($fixture['version'] < 3) {
 			$readyState = $savedState;
 			unset($readyState['pendingBonuses']);
-			$engine->upgradeRules();
+			$engine->upgradeRules(3);
 			$upgradedState = json_decode(json_encode($engine->savedState(), JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
 			same($readyState, $upgradedState, 'Version 3 signed cutover preserves the verified old position and available charges: ' . $fixture['name']);
 		}

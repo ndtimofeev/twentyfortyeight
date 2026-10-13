@@ -318,16 +318,20 @@ ServerStorageManager.prototype.validLocalGame = function (state) {
   var session = state && state.session;
   return this.validSavedState(state) && session && typeof session.token === "string" && session.token &&
     Number.isInteger(session.seed) && session.seed > 0 && session.seed <= 0xffffffff &&
-    (session.version === undefined || session.version === 1 || session.version === 2 || session.version === 3) && Array.isArray(state.actions) &&
+    (session.version === undefined || [1, 2, 3, 4].indexOf(session.version) !== -1) && Array.isArray(state.actions) &&
     state.actions.length <= 50000 && state.actions.every(this.validAction) &&
-    (session.version !== 3 || (state.pendingBonuses === undefined &&
+    (session.version < 3 || session.version === undefined || (state.pendingBonuses === undefined &&
+      (session.previousCutover === undefined || (session.version === 4 && Number.isInteger(session.previousCutover) &&
+        session.previousCutover >= 0 && session.previousCutover <= session.cutover)) &&
+      (session.ancestorTokens === undefined || (session.version === 4 && Array.isArray(session.ancestorTokens) &&
+        session.ancestorTokens.length <= 2 && session.ancestorTokens.every(function (token) { return typeof token === "string" && token; }))) &&
       (session.ancestorToken === undefined || (typeof session.ancestorToken === "string" && session.ancestorToken)) &&
       (session.previousToken === undefined || (typeof session.previousToken === "string" && session.previousToken &&
         Number.isInteger(session.cutover) && session.cutover >= 0 && session.cutover <= state.actions.length))));
 };
 
 ServerStorageManager.prototype.serverState = function (game) {
-  if (!game || !game.session || (game.session.version !== 1 && game.session.version !== 2 && game.session.version !== 3) ||
+  if (!game || !game.session || [1, 2, 3, 4].indexOf(game.session.version) === -1 ||
       !Number.isInteger(game.revision) || game.revision < 0) throw new Error("Invalid active game response");
   var state = Object.assign({}, game.state, {
     session: game.session, actions: this.copyActions(game.actions || []), revision: game.revision
@@ -346,11 +350,16 @@ ServerStorageManager.prototype.isUpgrade = function (oldSession, newSession) {
   var directParent = newSession.previousToken === oldSession.token;
   return (newSession.version === 2 && version === 1 && directParent) ||
     (newSession.version === 3 && ((directParent && (version === 1 || version === 2)) ||
-      (version === 1 && newSession.ancestorToken === oldSession.token)));
+      (version === 1 && newSession.ancestorToken === oldSession.token))) ||
+    (newSession.version === 4 && version < 4 && (directParent ||
+      (Array.isArray(newSession.ancestorTokens) && newSession.ancestorTokens.indexOf(oldSession.token) !== -1)));
 };
 
-ServerStorageManager.prototype.canExtendUpgrade = function (game) {
-  return game.session.version !== 3 || game.actions.length === game.session.cutover;
+ServerStorageManager.prototype.canExtendUpgrade = function (game, source) {
+  if (game.session.version < 3) return true;
+  if (game.actions.length !== game.session.cutover) return false;
+  return !source || source.token === game.session.previousToken || game.session.previousCutover === undefined ||
+    game.session.previousCutover === game.session.cutover;
 };
 
 // Preserve the offline history's original rules before switching versions. A
@@ -381,7 +390,8 @@ ServerStorageManager.prototype.replayUpgrade = async function (initial, local, g
       if (generation !== this.gameGeneration) return null;
       try {
         var body = { session: target.session.token, actions: actions, revision: target.revision };
-        if (target.session.version === 3) body.upgradeFrom = target.session.previousToken;
+        if (target.session.version >= 3) body.upgradeFrom = target.session.previousToken;
+        if (target.session.version === 4) body.sourceSession = oldSession.token;
         var saved = await this.request("PUT", body, this.gamesUrl);
         this.serverState(saved.data.game);
         return saved;
@@ -397,7 +407,7 @@ ServerStorageManager.prototype.replayUpgrade = async function (initial, local, g
         }
         this.serverState(current);
         var linked = current.session.token === target.session.token || this.isUpgrade(oldSession, current.session);
-        if (!linked || !this.canExtendUpgrade(current) || !this.isPrefix(current.actions, actions) || current.actions.length === actions.length) return latest;
+        if (!linked || !this.canExtendUpgrade(current, oldSession) || !this.isPrefix(current.actions, actions) || current.actions.length === actions.length) return latest;
         target = current;
       }
     }
@@ -478,7 +488,7 @@ ServerStorageManager.prototype.prepareGame = function (previousState) {
         local = candidate;
       }
     }
-    if (local && self.isUpgrade(local.session, game && game.session) && self.canExtendUpgrade(game) && self.isPrefix(game.actions, local.actions) &&
+    if (local && self.isUpgrade(local.session, game && game.session) && self.canExtendUpgrade(game, local.session) && self.isPrefix(game.actions, local.actions) &&
         local.actions.length > game.actions.length) {
       response = await self.promoteGame(game, local, generation);
       if (generation !== self.gameGeneration) return null;
@@ -552,7 +562,7 @@ ServerStorageManager.prototype.receiveGame = async function (game, sequence, not
   }
   var state = this.serverState(game);
   var generation = this.gameGeneration;
-  if (this.isUpgrade(this.session, game.session) && this.canExtendUpgrade(game) && this.isPrefix(game.actions, this.actions) && this.actions.length > game.actions.length) {
+  if (this.isUpgrade(this.session, game.session) && this.canExtendUpgrade(game, this.session) && this.isPrefix(game.actions, this.actions) && this.actions.length > game.actions.length) {
     var local = Object.assign({}, this.activeState, { session: this.session, actions: this.copyActions(this.actions) });
     var promoted = await this.promoteGame(game, local, generation);
     if (generation !== this.gameGeneration) return;
@@ -709,7 +719,8 @@ ServerStorageManager.prototype.validSavedState = function (state) {
   if (state.pendingBonuses !== undefined && (!state.pendingBonuses || !["undo", "swap", "remove"].every(function (type) {
     return Number.isInteger(state.pendingBonuses[type]) && state.pendingBonuses[type] >= 0 && state.pendingBonuses[type] <= 1;
   }))) return false;
-  return !state.previous || this.validBoard(state.previous);
+  return !state.previous || (this.validBoard(state.previous) &&
+    (state.previous.bonus === undefined || state.previous.bonus === "swap" || state.previous.bonus === "remove"));
 };
 
 ServerStorageManager.prototype.validBoard = function (state) {
@@ -949,13 +960,17 @@ ServerStorageManager.prototype.readGameDrafts = function () {
 ServerStorageManager.prototype.compatibleLocalGame = function (server, local) {
   return this.validLocalGame(local) &&
     (server.session.token === local.session.token ||
-      (this.isUpgrade(local.session, server.session) && this.canExtendUpgrade(server))) &&
+      (this.isUpgrade(local.session, server.session) && this.canExtendUpgrade(server, local.session))) &&
     this.isPrefix(server.actions, local.actions);
 };
 
 ServerStorageManager.prototype.newerLocalGame = function (reference, drafts, canonical) {
   var self = this;
+  var playedLocalRules = Number.isInteger(reference.session.cutover) && reference.actions.length > reference.session.cutover;
   return drafts.reduce(function (latest, draft) {
+    // A local suffix already belongs to its signed rules. Raw action-prefix
+    // equality cannot justify reinterpreting it as an older ancestor's tail.
+    if (playedLocalRules && draft.state.session.token !== reference.session.token) return latest;
     return self.compatibleLocalGame(canonical || reference, draft.state) && self.isPrefix(reference.actions, draft.state.actions) &&
       draft.state.actions.length > latest.actions.length
       ? draft.state : latest;
