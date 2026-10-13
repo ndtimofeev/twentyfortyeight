@@ -37,23 +37,23 @@ docker run --detach --name "$container_name" \
 
 port="$(docker port "$container_name" 80/tcp | sed -n 's/^127\.0\.0\.1://p')"
 test_url="http://127.0.0.1:$port"
-ready=false
-for attempt in $(seq 1 120); do
-  if curl --noproxy 127.0.0.1 --fail --silent "$test_url/status.php" \
-    | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(not (d.get("installed") and not d.get("maintenance")))' 2>/dev/null; then
-    ready=true
-    break
-  fi
-  if [ "$(docker inspect --format '{{.State.Running}}' "$container_name")" != true ]; then
-    echo 'Nextcloud container stopped during installation.' >&2
-    exit 1
-  fi
-  sleep 2
-done
-if [ "$ready" != true ]; then
-  echo 'Nextcloud installation did not become ready within 240 seconds.' >&2
+wait_for_nextcloud() {
+  local attempt
+  for attempt in $(seq 1 120); do
+    if curl --noproxy 127.0.0.1 --fail --silent "$test_url/status.php" \
+      | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(not (d.get("installed") and not d.get("maintenance")))' 2>/dev/null; then
+      return
+    fi
+    if [ "$(docker inspect --format '{{.State.Running}}' "$container_name")" != true ]; then
+      echo 'Nextcloud container stopped during startup.' >&2
+      exit 1
+    fi
+    sleep 2
+  done
+  echo 'Nextcloud did not become ready within 240 seconds.' >&2
   exit 1
-fi
+}
+wait_for_nextcloud
 
 docker exec "$container_name" mkdir -p /var/www/html/custom_apps/twentyfortyeight
 # Copy instead of bind-mounting: a private checkout can have mode 0700.
@@ -69,6 +69,13 @@ for test_user in smoke-one smoke-two; do
   docker exec --user www-data --env "OC_PASS=$test_password" "$container_name" \
     php occ user:add --password-from-env "$test_user"
 done
+
+# The first HTTP readiness check can warm web caches before occ installs the app.
+# Restart this disposable server so its workers see the completed CLI setup.
+docker restart "$container_name" >/dev/null
+port="$(docker port "$container_name" 80/tcp | sed -n 's/^127\.0\.0\.1://p')"
+test_url="http://127.0.0.1:$port"
+wait_for_nextcloud
 
 TEST_NEXTCLOUD_PASSWORD="$test_password" python3 "$repo_dir/scripts/smoke-nextcloud.py" "$test_url"
 if [ -n "${TEST_BROWSER_SMOKE:-}" ]; then
