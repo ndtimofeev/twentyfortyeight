@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 // Run with: php tests/backend.php (requires pdo_sqlite).
 require __DIR__ . '/fixtures/nextcloud.php';
+require __DIR__ . '/fixtures/notifications.php';
 foreach ([
 	'Db/Score', 'Db/ScoreMapper', 'Db/ActiveGameMapper', 'AppInfo/Application',
-	'Game/GameEngine', 'Game/GameSession',
+	'Game/GameEngine', 'Game/GameSession', 'Service/LeaderboardService', 'Notification/Notifier',
 	'Game/ActiveGameConflict', 'Game/ActiveGameService',
 	'Controller/ScoreController', 'Controller/GameController', 'Listener/UserDeletedListener',
 	'Migration/Version000100Date20261010000000', 'Migration/Version000200Date20261012000000',
 	'Migration/Version000300Date20261012000000',
-	'Migration/Version000600Date20261012000000',
+	'Migration/Version000600Date20261012000000', 'Migration/Version000700Date20261016000000',
 ] as $class) {
 	require __DIR__ . '/../lib/' . $class . '.php';
 }
@@ -57,7 +58,10 @@ function fixture(): array {
 	(new Version000200Date20261012000000())->changeSchema($output, fn () => $schema, []);
 	(new Version000300Date20261012000000())->changeSchema($output, fn () => $schema, []);
 	(new Version000600Date20261012000000())->changeSchema($output, fn () => $schema, []);
+	$migration = new \OCA\TwentyFortyEight\Migration\Version000700Date20261016000000($db);
+	$migration->changeSchema($output, fn () => $schema, []);
 	$schema->apply($db);
+	$migration->postSchemaChange($output, fn () => $schema, []);
 	return [$db, new ScoreMapper($db), $schema];
 }
 
@@ -77,7 +81,7 @@ function controller(ScoreMapper $mapper, string $uid, ?GameSession $games = null
 	};
 	$clock = new Clock();
 	$games ??= new GameSession(new Config(), $clock);
-	return new ScoreController(new class implements OCP\IRequest {}, $mapper, $session, $users, $clock, $games);
+	return new ScoreController(new class implements OCP\IRequest {}, $mapper, $session, $users, $clock, $games, new \OCA\TwentyFortyEight\Service\LeaderboardService($mapper, new \TwentyFortyEightTests\Notifications(), new \TwentyFortyEightTests\Logger()));
 }
 
 function activeFixture(): array {
@@ -594,7 +598,7 @@ $tests['new games use v4 while legacy score proofs and cutover counters keep the
 	$clock = new Clock();
 	$sessions = new GameSession(new Config(), $clock);
 	$fresh = $sessions->issue('alice');
-	same(4, $fresh['version']);
+	same(5, $fresh['version']);
 	same(false, array_key_exists('previousToken', $fresh));
 	same(false, array_key_exists('pendingBonuses', $sessions->verify('alice', $fresh['token'], [], true)['savedState']));
 	foreach ([1, 2] as $version) {
@@ -604,7 +608,7 @@ $tests['new games use v4 while legacy score proofs and cutover counters keep the
 		same($version, $old['session']['version']);
 		same(0, $old['savedState']['bonuses']['undo']);
 		$new = $sessions->upgrade('alice', $legacy['token'], $actions);
-		same(4, $new['version']);
+		same(5, $new['version']);
 		same(42, $new['seed']);
 		same($legacy['token'], $new['previousToken']);
 		same(count($actions), $new['cutover']);
@@ -630,7 +634,7 @@ $tests['legacy v2-with-v1-parent sessions remain valid and upgrade to bounded di
 	same($parent['token'], $legacy['session']['previousToken']);
 	same(false, array_key_exists('cutover', $legacy['session']));
 	$upgraded = $sessions->upgrade('alice', $token, $actions);
-	same(4, $upgraded['version']);
+	same(5, $upgraded['version']);
 	same($token, $upgraded['previousToken']);
 	same([$parent['token']], $upgraded['ancestorTokens']);
 	same(count($actions), $upgraded['cutover']);
@@ -678,7 +682,7 @@ $tests['versioned metadata rejects malformed cutovers parent shapes foreign user
 		['v' => 2, 's' => 42, 'iat' => $clock->now, 'p' => $parent['token'], 'n' => 0],
 		['v' => 2, 's' => 42, 'iat' => $clock->now, 'p' => null],
 		['v' => 2, 's' => 42, 'iat' => $clock->now, 'p' => $upgraded['token']],
-		['v' => 5, 's' => 42, 'iat' => $clock->now],
+		['v' => 6, 's' => 42, 'iat' => $clock->now],
 	];
 	foreach ([-1, true, false, 0.5, '0', null, GameEngine::MAX_ACTIONS + 1] as $cutover) {
 		$cases[] = [...$base, 'p' => $parent['token'], 'n' => $cutover];
@@ -734,7 +738,7 @@ $tests['loading v1 and v2 active games upgrades once and preserves every state f
 		if ($version === 1) { same(0, $legacy['state']['bonuses']['undo']); }
 		else { same(1, $legacy['state']['pendingBonuses']['undo']); }
 		$upgraded = $service->get('alice');
-		same(4, $upgraded['session']['version']);
+		same(5, $upgraded['session']['version']);
 		same($legacy['session']['token'], $upgraded['session']['previousToken']);
 		same(count($actions), $upgraded['session']['cutover']);
 		same(8, $upgraded['revision']);
@@ -933,7 +937,7 @@ $tests['adopting v1 and v2 local games returns v4 with the entire signed old his
 		$legacy = legacySession('alice', $clock, 42, $version);
 		$old = $sessions->verify('alice', $legacy['token'], $actions, true);
 		$adopted = $service->save('alice', $legacy['token'], $actions, 0);
-		same(4, $adopted['session']['version']);
+		same(5, $adopted['session']['version']);
 		same($legacy['token'], $adopted['session']['previousToken']);
 		same(count($actions), $adopted['session']['cutover']);
 		same(0, $adopted['revision']);
@@ -956,7 +960,7 @@ $tests['an upgrade racing with New Game cannot overwrite the fresh token or boar
 	};
 	$loaded = $service->get('alice');
 	sameGame($fresh, $loaded);
-	same(4, $loaded['session']['version']);
+	same(5, $loaded['session']['version']);
 	same([], $loaded['actions']);
 	same(0, $loaded['revision']);
 	sameGame($fresh, $service->get('alice'));
@@ -986,7 +990,7 @@ $tests['an expired legacy game is cleaned up instead of being revived by the upg
 	same(null, $service->get('alice'));
 	same(null, $mapper->findByUser('alice'));
 	$fresh = $service->ensure('alice');
-	same(4, $fresh['session']['version']);
+	same(5, $fresh['session']['version']);
 	same(false, array_key_exists('previousToken', $fresh['session']));
 };
 
@@ -1008,15 +1012,18 @@ $tests['an upgrade racing with expiry cleanup cannot replace the fresh game afte
 $tests['application bootstrap registers the user deletion listener'] = function (): void {
 	$context = new class implements OCP\AppFramework\Bootstrap\IRegistrationContext {
 		public array $listeners = [];
+		public array $notifiers = [];
+		public function registerNotifierService(string $class): void { $this->notifiers[] = $class; }
 		public function registerEventListener(string $event, string $listener, int $priority = 0): void {
 			$this->listeners[] = [$event, $listener, $priority];
 		}
 	};
 	(new Application())->register($context);
+	same([\OCA\TwentyFortyEight\Notification\Notifier::class], $context->notifiers);
 	same([[OCP\User\Events\UserDeletedEvent::class, UserDeletedListener::class, 0]], $context->listeners);
 };
 
-$tests['v4 upgrades native v3 history without reinterpreting old bonuses and refunds new actions'] = function (): void {
+$tests['v5 upgrades native v3 history without reinterpreting old bonuses and refunds new actions'] = function (): void {
 	[$db, , $sessions, , $clock] = activeFixture();
 	$mapper = new ScoreMapper($db);
 	$legacy = legacySession('alice', $clock, 1, 3);
@@ -1025,7 +1032,7 @@ $tests['v4 upgrades native v3 history without reinterpreting old bonuses and ref
 	same(null, $old['savedState']['previous']);
 	same(false, $old['state']['canUndo']);
 	$child = $sessions->upgrade('alice', $legacy['token'], $actions);
-	same(4, $child['version']);
+	same(5, $child['version']);
 	same($legacy['token'], $child['previousToken']);
 	$current = $sessions->verify('alice', $child['token'], $actions, true);
 	sameCutoverState($old['savedState'], $current['savedState']);
@@ -1046,7 +1053,7 @@ $tests['v4 upgrades native v3 history without reinterpreting old bonuses and ref
 	same([$old['peakScore'], $old['bestTileEver'], $old['movesAtPeakScore'], $clock->now], record($mapper, 'alice'));
 };
 
-$tests['v4 preserves the full v1-v2-v3 chain and extends an offline mixed-rules tail'] = function (): void {
+$tests['v5 preserves the full v1-v2-v3 chain and extends an offline mixed-rules tail'] = function (): void {
 	[, $mapper, $sessions, $service, $clock] = activeFixture();
 	$p1 = legacySession('alice', $clock);
 	$p2 = signedPayload('alice', ['v' => 2, 's' => 42, 'iat' => $clock->now, 'p' => $p1['token']]);
@@ -1114,15 +1121,15 @@ $tests['v4 token migration only widens the column and is idempotent'] = function
 	$output = new class implements OCP\Migration\IOutput {};
 	$migration = new Version000600Date20261012000000();
 	same($schema, $migration->changeSchema($output, fn () => $schema, []));
-	same(GameSession::MAX_TOKEN_LENGTH, $table->getColumn('session_token')->getLength());
-	$before['session_token'][1]['length'] = GameSession::MAX_TOKEN_LENGTH;
+	same(1024, $table->getColumn('session_token')->getLength());
+	$before['session_token'][1]['length'] = 1024;
 	same($before, $table->columns);
 	same(null, $migration->changeSchema($output, fn () => $schema, []));
 	same(null, $migration->changeSchema($output, fn () => new Schema(), []));
 };
 
 foreach ([1, 2] as $sourceVersion) {
-	$tests['v4 extends the inner v3 cutover for an offline v' . $sourceVersion . ' ancestor'] = function () use ($sourceVersion): void {
+	$tests['v5 extends the inner v3 cutover for an offline v' . $sourceVersion . ' ancestor'] = function () use ($sourceVersion): void {
 		[, $mapper, $sessions, $service, $clock] = activeFixture();
 		$p1 = legacySession('alice', $clock);
 		$p2 = signedPayload('alice', ['v' => 2, 's' => 42, 'iat' => $clock->now, 'p' => $p1['token']]);
@@ -1147,7 +1154,7 @@ foreach ([1, 2] as $sourceVersion) {
 	};
 }
 
-$tests['v4 refuses ancestor promotion after its v3 parent has played a suffix'] = function (): void {
+$tests['v5 refuses ancestor promotion after its v3 parent has played a suffix'] = function (): void {
 	[, $mapper, $sessions, $service, $clock] = activeFixture();
 	$p2 = legacySession('alice', $clock, 42, 2);
 	[$prefix, $full] = bankDependentV2History();
@@ -1162,7 +1169,7 @@ $tests['v4 refuses ancestor promotion after its v3 parent has played a suffix'] 
 	sameGame($target, $service->get('alice'));
 };
 
-$tests['v4 ancestor promotion rejects unknown or foreign source sessions'] = function (): void {
+$tests['v5 ancestor promotion rejects unknown or foreign source sessions'] = function (): void {
 	[, $mapper, $sessions, $service, $clock] = activeFixture();
 	$p2 = legacySession('alice', $clock, 42, 2);
 	[$prefix, $full] = bankDependentV2History();
@@ -1177,6 +1184,8 @@ $tests['v4 ancestor promotion rejects unknown or foreign source sessions'] = fun
 	}
 	sameGame($target, $service->get('alice'));
 };
+
+require __DIR__ . '/leaderboard_cases.php';
 
 $failed = 0;
 foreach ($tests as $name => $test) {

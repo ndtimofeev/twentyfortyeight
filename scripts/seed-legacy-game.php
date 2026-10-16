@@ -152,12 +152,13 @@ $sign = static function (string $uid, array $data) use ($encode, $config): strin
 	return $payload . '.' . $encode(hash_hmac('sha256', Application::APP_ID . "\0" . $uid . "\0" . $generation . "\0" . $payload,
 		(string)$config->getSystemValue('secret', ''), true));
 };
-foreach (['smoke-legacy-v3', 'smoke-legacy-chain', 'smoke-legacy-chain-v2'] as $uid) {
-	$data = ['v' => 3, 's' => $seed, 'iat' => time()];
-	if ($uid !== 'smoke-legacy-v3') {
+foreach (['smoke-legacy-v3', 'smoke-legacy-chain', 'smoke-legacy-chain-v2', 'smoke-legacy-v4', 'smoke-legacy-chain-v4', 'smoke-legacy-chain-v4-v2'] as $uid) {
+	$version = str_contains($uid, 'v4') ? 4 : 3;
+	$data = ['v' => $version, 's' => $seed, 'iat' => time()];
+	if (!in_array($uid, ['smoke-legacy-v3', 'smoke-legacy-v4'], true)) {
 		$p1 = $sign($uid, ['v' => 1, 's' => $seed, 'iat' => time()]);
 		$p2 = $sign($uid, ['v' => 2, 's' => $seed, 'iat' => time(), 'p' => $p1]);
-		$data['p'] = $p2;
+		$data['p'] = $version === 4 ? $sign($uid, ['v' => 3, 's' => $seed, 'iat' => time(), 'p' => $p2, 'n' => count($prefix)]) : $p2;
 		$data['n'] = count($prefix);
 	}
 	$token = $sign($uid, $data);
@@ -167,7 +168,7 @@ foreach (['smoke-legacy-v3', 'smoke-legacy-chain', 'smoke-legacy-chain-v2'] as $
 	$source = $token;
 	$expectedUndo = 1;
 	$tail = [...$prefix, ['undo'], ['remove', 2]];
-	if ($uid === 'smoke-legacy-chain-v2') {
+	if (in_array($uid, ['smoke-legacy-chain-v2', 'smoke-legacy-chain-v4-v2'], true)) {
 		$source = $p2;
 		$tail = [...$prefix, ['undo']];
 		for ($cycle = 0; $cycle < 2; $cycle++) $tail = [...non128Move($seed, $tail), ['undo']];
@@ -179,7 +180,7 @@ foreach (['smoke-legacy-v3', 'smoke-legacy-chain', 'smoke-legacy-chain-v2'] as $
 	$expected = $sessions->verify($uid, $upgraded['token'], $tail, true)['savedState'];
 	$original = $old['savedState'];
 	unset($original['pendingBonuses']);
-	if ($old['savedState']['previous'] !== null || $old['savedState']['bonuses']['undo'] !== $expectedUndo
+	if (($old['session']['version'] < 4 && $old['savedState']['previous'] !== null) || $old['savedState']['bonuses']['undo'] !== $expectedUndo
 		|| json_encode($expected) !== json_encode($original)) throw new RuntimeException('The nested cutover must preserve its complete state');
 	$local = [...$old['savedState'], 'session' => $old['session'], 'actions' => $tail, 'revision' => 4];
 	$result[] = ['username' => $uid, 'localState' => $local, 'expectedState' => $expected];

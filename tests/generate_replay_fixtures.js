@@ -230,6 +230,7 @@ function generate() {
 	addVersion2Fixtures(fixtures)
 	addVersion3Fixtures(fixtures)
 	addVersion4Fixtures(fixtures)
+	addVersion5Fixtures(fixtures)
 	return fixtures
 }
 
@@ -388,6 +389,28 @@ function addVersion4Fixtures(fixtures) {
 		assert.ok(apply(env, ['undo']))
 		assert.strictEqual(env.game.bonuses[type], 1)
 		fixtures.push(fixture(`v4-${type}-last-charge-restored`, env))
+	}
+}
+
+function addVersion5Fixtures(fixtures) {
+	for (const [name, actions] of [
+		['moves', [['move', 0], ['move', 1], ['move', 2]]],
+		['swaps', [['move', 0], ['swap', 0, 0, 0, 3], ['swap', 0, 0, 0, 3]]],
+		['removes', [['move', 0], ['remove', 2], ['remove', 4]]],
+		['mixed', [['move', 0], ['swap', 0, 0, 0, 3], ['remove', 2]]],
+	]) {
+		let env = createGame(1, null, null, 5)
+		for (const action of actions) {
+			const before = env.stored.actions.length
+			apply(env, action)
+			assert.strictEqual(env.stored.actions.length, before + 1)
+		}
+		fixtures.push(fixture(`v5-${name}-two-snapshots`, env))
+		for (let i = 1; i <= 2; i++) {
+			env = createGame(1, copy(env.stored.state), copy(env.stored), 5)
+			assert.ok(apply(env, ['undo']))
+			fixtures.push(fixture(`v5-${name}-undo-${i}-after-reload`, env))
+		}
 	}
 }
 

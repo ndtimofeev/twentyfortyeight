@@ -31,6 +31,33 @@ class ScoreMapper extends QBMapper {
 		}
 	}
 
+	/** Serialize leaderboard transitions across users on every supported database. */
+	public function withLeaderboardLock(callable $action): void {
+		$this->db->beginTransaction();
+		try {
+			$qb = $this->db->getQueryBuilder();
+			$qb->update('twentyfortyeight_leader_lock')
+				->set('id', $qb->createNamedParameter(1, IQueryBuilder::PARAM_INT))
+				->where($qb->expr()->eq('id', $qb->createNamedParameter(1, IQueryBuilder::PARAM_INT)))
+				->executeStatement();
+			$action();
+			$this->db->commit();
+		} catch (\Throwable $e) {
+			$this->db->rollBack();
+			throw $e;
+		}
+	}
+
+	/** @return Score[] All users sharing first place, including ties beyond the top 20. */
+	public function findLeaders(): array {
+		$top = $this->findTop(1);
+		if ($top === []) return [];
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')->from($this->getTableName())
+			->where($qb->expr()->eq('score', $qb->createNamedParameter($top[0]->getScore(), IQueryBuilder::PARAM_INT)));
+		return $this->findEntities($qb);
+	}
+
 	/**
 	 * Keep personal records monotonic even when several sessions submit at once.
 	 * No value read from the database is later written back: each maximum is

@@ -44,7 +44,7 @@ jobs:
       - name: Build installable app archive
         run: |
           mkdir -p work/package/twentyfortyeight
-          cp -R appinfo css img js lib templates LICENSE LICENSE-2048.txt README.md work/package/twentyfortyeight/
+          cp -R appinfo css img js l10n lib templates LICENSE LICENSE-2048.txt README.md work/package/twentyfortyeight/
           tar -C work/package -czf work/twentyfortyeight.tar.gz twentyfortyeight
       - uses: actions/upload-artifact@v4
         with:

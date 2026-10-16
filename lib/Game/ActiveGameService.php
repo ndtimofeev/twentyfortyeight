@@ -168,6 +168,10 @@ class ActiveGameService {
 
 	private function canPromoteFrom(array $session, string $source): bool {
 		if (($session['previousToken'] ?? null) === $source) return true;
+		if ($session['version'] >= 5) {
+			$index = array_search($source, $session['ancestorTokens'] ?? [], true);
+			return $index !== false && ($session['ancestorCutovers'][$index] ?? null) === $session['cutover'];
+		}
 		return in_array($source, $session['ancestorTokens'] ?? [], true)
 			&& (!isset($session['previousCutover']) || $session['previousCutover'] === $session['cutover']);
 	}

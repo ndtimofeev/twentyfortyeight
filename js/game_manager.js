@@ -95,7 +95,7 @@ GameManager.prototype.setup = function () {
 
 GameManager.prototype.initializeState = function (previousState) {
   var session = this.storageManager.session;
-  this.rulesVersion = session ? (session.version || 1) : 4;
+  this.rulesVersion = session ? (session.version || 1) : 5;
   if (this.rulesVersion === 2) {
     this.pendingBonuses = previousState && previousState.pendingBonuses || this.freshPendingBonuses();
   } else {
@@ -127,7 +127,7 @@ GameManager.prototype.initializeState = function (previousState) {
     this.maxTile     = 0;
     this.bonuses     = this.freshBonuses();
     this.reached     = {};
-    this.previous    = null; // state before the last move, used by undo
+    this.previous    = null; // Latest reversible action, with one earlier snapshot in v5.
 
     // Add the initial tiles
     this.addStartTiles();
@@ -419,7 +419,7 @@ GameManager.prototype.freshPendingBonuses = function () {
   return { undo: 0, swap: 0, remove: 0 };
 };
 
-// One reversible action. Only a cancelled Swap/Remove refunds its own charge;
+// A reversible action. Only a cancelled Swap/Remove refunds its own charge;
 // move rewards, RNG, historical records and the Undo charge stay outside it.
 GameManager.prototype.snapshot = function (bonus) {
   var state = {
@@ -430,6 +430,10 @@ GameManager.prototype.snapshot = function (bonus) {
     over:  this.over
   };
   if (this.rulesVersion >= 4 && bonus) state.bonus = bonus;
+  if (this.rulesVersion >= 5 && this.previous) {
+    state.previous = Object.assign({}, this.previous);
+    delete state.previous.previous; // Keep exactly two reversible actions.
+  }
   return state;
 };
 
@@ -478,7 +482,7 @@ GameManager.prototype.undo = function () {
   this.moves    = state.moves;
   this.won      = state.won;
   this.over     = state.over;
-  this.previous = null;
+  this.previous = this.rulesVersion >= 5 ? state.previous || null : null;
   if (this.rulesVersion >= 4 && state.bonus) {
     this.bonuses[state.bonus] = Math.min(BONUS_MAX, this.bonuses[state.bonus] + 1);
   }

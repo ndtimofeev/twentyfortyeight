@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the installed app using ordinary Nextcloud login and CSRF checks."""
 import html.parser
+from concurrent.futures import ThreadPoolExecutor
 import http.cookiejar
 import json
 import os
@@ -93,6 +94,14 @@ class Client:
             assert expected != 200, f"{path}: successful API response was not JSON"
             return None
 
+    def notifications(self):
+        request = urllib.request.Request(self.base + "/ocs/v2.php/apps/notifications/api/v2/notifications", headers={
+            "Accept": "application/json", "OCS-APIRequest": "true", "requesttoken": self.token,
+        })
+        with self.browser.open(request, timeout=30) as response:
+            data = json.load(response)
+        return [entry for entry in data["ocs"]["data"] if entry["app"] == "twentyfortyeight"]
+
 
 def main():
     password = os.environ["TEST_NEXTCLOUD_PASSWORD"]
@@ -109,7 +118,7 @@ def main():
     assert one.request("/api/games")["game"] == initial
     assert isinstance(initial["revision"], int) and initial["actions"] == []
     session = initial["session"]
-    assert session["version"] == 4 and 1 <= session["seed"] <= 0xFFFFFFFF
+    assert session["version"] == 5 and 1 <= session["seed"] <= 0xFFFFFFFF
     assert "pendingBonuses" not in initial["state"]
     assert isinstance(session["token"], str) and "." in session["token"]
     forged = {"session": "", "actions": [], "score": 999999, "bestTile": 131072, "moves": 1}
@@ -134,12 +143,21 @@ def main():
     assert all(entry["rank"] == 1 and entry["score"] == 0 for entry in result["leaderboard"])
     assert result["me"]["rank"] == 1
 
+    assert one.notifications() == [] and two.notifications() == [], "A shared first place must not notify"
+
     proof = json.loads(subprocess.check_output(
         ["node", str(Path(__file__).with_name("generate-proof.js")), json.dumps(session)], text=True
     ))
     assert proof["actions"] and proof["expected"]["score"] > 0
     payload = {"session": token, "actions": proof["actions"]}
-    result = one.request("/api/scores", payload)
+    # Different authenticated sessions submit the same record concurrently.
+    # A lost response or concurrent tab must not duplicate displacement notices.
+    another = Client(sys.argv[1])
+    another.login("smoke-one", password)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        requests = [pool.submit(client.request, "/api/scores", payload) for client in (one, another)]
+        results = [request.result() for request in requests]
+    result = results[0]
     for key in ("score", "bestTile"):
         assert result["me"][key] == proof["expected"][key], (key, result, proof)
     assert result["me"]["rank"] == 1
@@ -147,6 +165,14 @@ def main():
     # Repeating a valid submission is harmless, and an older prefix cannot lower records.
     assert one.request("/api/scores", payload)["me"] == result["me"]
     assert one.request("/api/scores", empty)["me"] == result["me"]
+    notices = two.notifications()
+    assert len(notices) == 1, notices
+    notice = notices[0]
+    assert notice["subject"] == "You lost first place in 2048", notice
+    assert "smoke-one" in notice["message"] and str(proof["expected"]["score"]) in notice["message"], notice
+    assert notice["link"].endswith("/apps/twentyfortyeight/"), notice
+    assert one.notifications() == [], "Improving your own first place must not notify yourself"
+    print("Native Nextcloud notifications: ties stay silent; concurrent duplicate records send one displaced-leader notice.")
 
     # Persist a verified history through an optimistic, per-user game revision.
     two.request("/api/games", {

@@ -7,6 +7,7 @@ namespace OCA\TwentyFortyEight\Controller;
 use OCA\TwentyFortyEight\AppInfo\Application;
 use OCA\TwentyFortyEight\Db\ScoreMapper;
 use OCA\TwentyFortyEight\Game\GameSession;
+use OCA\TwentyFortyEight\Service\LeaderboardService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -27,6 +28,7 @@ class ScoreController extends Controller {
 		private IUserManager $userManager,
 		private ITimeFactory $time,
 		private GameSession $games,
+		private LeaderboardService $records,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -60,7 +62,7 @@ class ScoreController extends Controller {
 	}
 
 	private function storeScore(string $uid, int $score, int $bestTile, int $moves): void {
-		$this->mapper->storeBest($uid, $score, $bestTile, $moves, $this->time->getTime());
+		$this->records->store($uid, $score, $bestTile, $moves, $this->time->getTime());
 	}
 
 	private function leaderboardData(string $uid): array {

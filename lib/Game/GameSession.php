@@ -13,7 +13,7 @@ use OCP\IConfig;
 /** Signed, stateless session proofs bound to the authenticated Nextcloud user. */
 final class GameSession {
 	public const MAX_AGE = 90 * 24 * 60 * 60;
-	public const MAX_TOKEN_LENGTH = 1024;
+	public const MAX_TOKEN_LENGTH = 2048;
 	private const CLOCK_SKEW = 300;
 
 	public function __construct(
@@ -49,23 +49,27 @@ final class GameSession {
 		}
 		if ($sourceSession !== '' && $sourceSession !== $previousToken) {
 			$metadata = $this->metadata($token, $data);
-			if (!in_array($sourceSession, $metadata['ancestorTokens'] ?? [], true)) {
+			if (!in_array($sourceSession, $metadata['ancestorTokens'] ?? [$metadata['ancestorToken'] ?? ''], true)) {
 				throw new InvalidArgumentException('Invalid source game session');
 			}
-			$parent = $data['_parent'];
-			if ($parent['v'] === 3 && isset($parent['p'])) {
-				if ($data['n'] !== $parent['n']) {
-					throw new InvalidArgumentException('The parent already has newer-rules actions');
-				}
-				// No v3/v4 suffix has been played. Extend the earlier boundary too,
-				// keeping the v1/v2 tail's original canonical rules and identity.
-				$this->replayData($parent['_parent'], $actions);
-				$renewed = $this->issueForSeed($uid, $data['s'], $parent['p'], count($actions), 3);
-				return $this->issueForSeed($uid, $data['s'], $renewed['token'], count($actions));
-			}
 		}
-		$this->replayData($data['_parent'], $actions);
-		return $this->issueForSeed($uid, $data['s'], $previousToken, count($actions));
+		return $this->extendBoundary($uid, $data, $sourceSession === '' ? $previousToken : $sourceSession, $actions);
+	}
+
+	/** Extend every unplayed boundary above the source, retaining each version. */
+	private function extendBoundary(string $uid, array $data, string $source, array $actions): array {
+		$parent = $data['_parent'];
+		$parentToken = $data['p'];
+		if ($source !== $parentToken && $parent['v'] >= 3) {
+			if (!isset($parent['p']) || $data['n'] !== $parent['n']) {
+				throw new InvalidArgumentException('The parent already has newer-rules actions');
+			}
+			$parentToken = $this->extendBoundary($uid, $parent, $source, $actions)['token'];
+		} else {
+			// A v2 parent may link v1 as identity only; its entire proof uses v2.
+			$this->replayData($parent, $actions);
+		}
+		return $this->issueForSeed($uid, $data['s'], $parentToken, count($actions), $data['v']);
 	}
 
 	/** Keep the generation in app config so deletion of user preferences cannot reset it. */
@@ -113,8 +117,11 @@ final class GameSession {
 		if ($data['v'] >= 4) {
 			if (isset($data['_parent']['n'])) $session['previousCutover'] = $data['_parent']['n'];
 			$ancestor = $data['_parent'] ?? [];
+			$cutover = $data['n'] ?? 0;
 			while (isset($ancestor['p'])) {
+				$cutover = $ancestor['n'] ?? $cutover;
 				$session['ancestorTokens'][] = $ancestor['p'];
+				if ($data['v'] >= 5) $session['ancestorCutovers'][] = $cutover;
 				$ancestor = $ancestor['_parent'];
 			}
 		}
@@ -142,7 +149,7 @@ final class GameSession {
 
 	/** Parent metadata is signed too; an upgraded token cannot claim another game. */
 	private function decodeToken(string $uid, string $token, bool $checkAge = true, int $depth = 0): array {
-		if ($depth > 3 || strlen($token) > self::MAX_TOKEN_LENGTH || !preg_match('/^([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]{43})$/D', $token, $parts)
+		if ($depth > 4 || strlen($token) > self::MAX_TOKEN_LENGTH || !preg_match('/^([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]{43})$/D', $token, $parts)
 			|| !hash_equals($this->signature($uid, $parts[1]), $parts[2])) {
 			throw new InvalidArgumentException('Invalid game session');
 		}
@@ -152,14 +159,14 @@ final class GameSession {
 		} catch (JsonException) {
 			throw new InvalidArgumentException('Invalid game session');
 		}
-		if (!is_array($data) || !in_array($data['v'] ?? null, [1, 2, 3, 4], true)
+		if (!is_array($data) || !in_array($data['v'] ?? null, [1, 2, 3, 4, 5], true)
 			|| !isset($data['s'], $data['iat']) || !is_int($data['s']) || !is_int($data['iat'])
 			|| $data['s'] < 1 || $data['s'] > 0xffffffff
 			|| count($data) !== (array_key_exists('p', $data) ? ($data['v'] >= 3 ? 5 : 4) : 3)) {
 			throw new InvalidArgumentException('Unsupported or invalid game session');
 		}
 		if (array_key_exists('p', $data)) {
-			if (!in_array($data['v'], [2, 3, 4], true) || !is_string($data['p'])
+			if (!in_array($data['v'], [2, 3, 4, 5], true) || !is_string($data['p'])
 				|| ($data['v'] >= 3 && (!isset($data['n']) || !is_int($data['n']) || $data['n'] < 0 || $data['n'] > GameEngine::MAX_ACTIONS))) {
 				throw new InvalidArgumentException('Invalid previous game session');
 			}

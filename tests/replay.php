@@ -80,10 +80,10 @@ namespace {
 	foreach ([0, -1, 4294967296] as $seed) {
 		rejects(fn() => new GameEngine($seed), 'Invalid seed ' . $seed);
 	}
-	foreach ([0, 5, -1] as $version) {
+	foreach ([0, 6, -1] as $version) {
 		rejects(fn() => new GameEngine(1, $version), 'Unsupported rules version ' . $version);
 	}
-	same(4, (new GameEngine(1))->getRulesVersion(), 'New games use version 4');
+	same(5, (new GameEngine(1))->getRulesVersion(), 'New games use version 5');
 	same(1, (new GameEngine(1, 1))->getRulesVersion(), 'Legacy engine retains version 1');
 	same(false, array_key_exists('pendingBonuses', (new GameEngine(1, 1))->state()), 'Version 1 diagnostics remain unchanged');
 	same(false, array_key_exists('pendingBonuses', (new GameEngine(1, 1))->savedState()), 'Version 1 saved state remains unchanged');
@@ -276,7 +276,7 @@ namespace {
 	};
 	$sessions = new GameSession($config, $time);
 	$issued = $sessions->issue('alice');
-	same(4, $issued['version'], 'New sessions use protocol version 4');
+	same(5, $issued['version'], 'New sessions use protocol version 5');
 	same(true, $issued['seed'] >= 1 && $issued['seed'] <= 0xffffffff, 'Random seed fits unsigned 32 bits');
 	$verified = $sessions->verify('alice', $issued['token'], []);
 	same(json_encode((new GameEngine($issued['seed']))->replay([])), json_encode($verified), 'Valid signature replays the signed seed');
@@ -305,7 +305,7 @@ namespace {
 		return $payload . '.' . $encode(hash_hmac('sha256', "twentyfortyeight\0alice\0\0" . $payload, 'test-secret', true));
 	}
 	$time->now = 1_800_000_000;
-	foreach ([['v' => 5, 's' => 1, 'iat' => $time->now], ['v' => 1, 's' => 0, 'iat' => $time->now], ['v' => 1, 's' => '1', 'iat' => $time->now], ['v' => 1, 's' => 1, 'iat' => (string)$time->now], ['v' => 1, 's' => 1, 'iat' => $time->now, 'extra' => true]] as $payload) {
+	foreach ([['v' => 6, 's' => 1, 'iat' => $time->now], ['v' => 1, 's' => 0, 'iat' => $time->now], ['v' => 1, 's' => '1', 'iat' => $time->now], ['v' => 1, 's' => 1, 'iat' => (string)$time->now], ['v' => 1, 's' => 1, 'iat' => $time->now, 'extra' => true]] as $payload) {
 		rejects(fn() => $sessions->verify('alice', tokenFor($payload), []), 'Signed payload still validates schema');
 	}
 	$sessions->revoke('bob');

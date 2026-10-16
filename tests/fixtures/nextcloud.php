@@ -12,6 +12,7 @@ namespace OCP {
 	interface IUserManager { public function get(string $uid): ?IUser; }
 	interface IDBConnection { public function getQueryBuilder(): \OCP\DB\QueryBuilder\IQueryBuilder; }
 	interface IConfig {}
+	interface IURLGenerator {}
 }
 
 namespace OCP\DB {
@@ -45,6 +46,7 @@ namespace OCP\AppFramework\Bootstrap {
 	interface IBootContext {}
 	interface IRegistrationContext {
 		public function registerEventListener(string $event, string $listener, int $priority = 0): void;
+		public function registerNotifierService(string $class): void;
 	}
 	interface IBootstrap {
 		public function register(IRegistrationContext $context): void;
@@ -154,6 +156,9 @@ namespace TwentyFortyEightTests {
 			$this->pdo = new \PDO('sqlite::memory:', null, null, [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]);
 		}
 		public function getQueryBuilder(): \OCP\DB\QueryBuilder\IQueryBuilder { return new QueryBuilder($this); }
+		public function beginTransaction(): void { $this->pdo->beginTransaction(); }
+		public function commit(): void { $this->pdo->commit(); }
+		public function rollBack(): void { $this->pdo->rollBack(); }
 	}
 	class Expressions {
 		public function eq(string $field, string $value): string { return '"' . $field . '" = ' . $value; }

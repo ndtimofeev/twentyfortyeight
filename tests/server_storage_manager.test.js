@@ -1445,3 +1445,29 @@ test('a longer ancestor draft cannot reinterpret a locally played v4 suffix', as
   assert.equal(activePuts(env)[0].body.upgradeFrom, undefined, 'new v4 actions save as v4 rather than extending old rules');
   assert.deepEqual(activePuts(env)[0].body.actions, local4.actions);
 });
+
+test('v5 refuses a tail crossing a played inner boundary even if its immediate parent is unplayed', async () => {
+  const session5 = { token:'v5-after-played-v3', seed:123, version:5, previousToken:'signed-v4',
+    ancestorTokens:['signed-v3','signed-v2'], ancestorCutovers:[2,1], previousCutover:2, cutover:2 };
+  const history=[['move',3],['move',0],['move',1]];
+  const canonical=game(session5,history.slice(0,2),8,state(32,8,777));
+  const env=load({serverGame:canonical});
+  const local=localGame(game(v2Session('signed-v2'),history,7,v2Board(48,8,999)));
+  const restored=await env.manager.prepareGame(local);
+  assert.equal(restored.session.token,session5.token);
+  assert.deepEqual(plain(restored.actions),canonical.actions);
+  assert.equal(activePuts(env).length,0);
+});
+
+test('two Undo snapshots are validated and a third nested state is rejected', () => {
+  const env=load();
+  const board=state(32,8);
+  const snapshot=()=>({grid:plain(board.grid),score:0,moves:0,won:false,over:false});
+  board.previous={...snapshot(),bonus:'remove',previous:{...snapshot(),bonus:'swap'}};
+  assert.equal(env.manager.validSavedState(board),true);
+  board.previous.previous.previous=snapshot();
+  assert.equal(env.manager.validSavedState(board),false);
+  delete board.previous.previous.previous;
+  board.previous.previous.bonus='undo';
+  assert.equal(env.manager.validSavedState(board),false);
+});

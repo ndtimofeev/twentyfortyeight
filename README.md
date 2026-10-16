@@ -13,9 +13,16 @@ of the instance.
   board, score, bonuses, Undo snapshot and random state. Opening the app in
   another browser or device resumes that game. Browser `localStorage`, separated
   by user and installation URL, also keeps a copy for offline play.
+* When a verified score strictly exceeds first place, the displaced leaders get
+  a standard Nextcloud notification with the new leader, score and a link to the
+  game. Ties share first place and send no notification. Improving your own lead
+  and retrying a submitted result do not notify you or repeat the event. All tied
+  leaders are covered, including those beyond the displayed top 20. Record and
+  notification writes share a serialized database transaction; push delivery is
+  deferred until commit.
 * **Bonuses** (buttons under the board, two charges each):
-  * *Undo* takes back the last move, Swap or Remove (one level); each new 128 tile
-    earns a charge.
+  * *Undo* takes back the last move, Swap or Remove (up to two consecutive
+    actions); each new 128 tile earns a charge.
   * *Swap* trades two tiles with different values; each new 256 tile earns a charge.
     A swap that would leave no moves is refused.
   * *Remove* deletes all tiles with the value of the picked tile; one more charge
@@ -28,9 +35,11 @@ of the instance.
   cancelling a move keeps the charges earned by its merges. Repeating a
   qualifying merge after Undo earns a charge again if there is room.
   Swap and Remove are not moves: no new tile appears, and their pre-action
-  board is saved for Undo. Undo cannot undo itself. If Remove clears the entire
-  board, two starting tiles appear so the game can continue. On the game over / win screen only
-  Undo works. Charges, the undo snapshot, the biggest tile and
+  board is saved for Undo. Undo consumes a snapshot, so another Undo takes back
+  the earlier action. Only two snapshots are retained, including across reloads
+  and devices; a new action after Undo starts a new branch. If Remove clears the
+  entire board, two starting tiles appear so the game can continue. On the
+  game over / win screen only Undo works. Charges, the undo snapshots, the biggest tile and
   the Keep going choice are saved with the running game.
 * All controls work with a keyboard. In Swap/Remove mode, arrows select a cell,
   Enter/Space picks a tile and Escape cancels. Ordinary moves use arrows,
@@ -63,22 +72,24 @@ limited. A game token lasts 90 days; a game is limited to 50,000 successful
 actions. Deleting an account revokes its tokens and removes its records and
 active game.
 
-Rules version 4 also allows Undo after Swap/Remove and refunds the cancelled
-bonus. Rules version 3 awards charges for every qualifying merge. Versions 1, 2
-and 3 proofs still replay with their original rules, so older pending score
+Rules version 5 retains two reversible actions and allows consecutive Undo.
+Rules version 4 allows Undo after Swap/Remove and refunds the cancelled
+bonus. Rules version 3 awards charges for every qualifying merge. Versions 1, 2,
+3 and 4 proofs still replay with their original rules, so older pending score
 submissions remain verifiable. Loading an older active game upgrades its future actions to
-version 4. Its seed, board, score, ready charges and history are preserved; the
+version 5. Its seed, board, score, ready charges and history are preserved; the
 version 2 reserve is removed. The signed replacement session includes
 `previousToken` and `cutover`, the number of actions verified under the old rules.
-Version-4 sessions also include `ancestorTokens` when their signed parent has
-older ancestors, so offline histories from versions 1, 2 or 3 remain linked.
+Version-4/5 sessions also include `ancestorTokens` when their signed parent has
+older ancestors, so offline histories from versions 1–4 remain linked.
 Existing version-3 proofs keep their original `ancestorToken` metadata.
 Compatible unsent old-rule actions are uploaded with `upgradeFrom: oldToken`
 and `sourceSession` identifying their original signed session before the browser
-switches rules. When a v1/v2 tail crosses an unplayed v3 boundary, both signed
-cutovers are extended. `previousCutover` exposes that earlier boundary; a suffix
-already played under v3 prevents its reinterpretation. The server may extend
-the cutover only while no actions under the new rules have been saved. Otherwise,
+switches rules. Every unplayed signed boundary above the source is extended.
+Version-5 `ancestorCutovers` exposes each older source's boundary; a suffix
+already played under an intervening version prevents its reinterpretation.
+The server may extend the cutover only while no actions under the new rules have
+been saved. Otherwise,
 the current server game wins and the older local history is backed up.
 
 A connection is required to start a new verified game. An existing saved game
@@ -135,6 +146,13 @@ cancelled with Undo, returning their charge. Existing signed histories retain
 every previous rules cutover and preserve the old Undo snapshot at upgrade;
 the new bonus snapshots apply to actions played under version 4. The database
 migration widens the active-session token to fit the complete signed chain.
+
+Version 0.7.0 introduces rules version 5, retaining the last two actions for
+consecutive Undo. Old proofs and cutovers remain intact; the existing one-level
+snapshot remains available when an older game upgrades. The migration widens
+session tokens to 2048 characters and adds a singleton row for serializing
+leaderboard transitions. First-place displacement uses native Nextcloud
+notifications, with an English fallback and Russian translation.
 
 ## Layout
 

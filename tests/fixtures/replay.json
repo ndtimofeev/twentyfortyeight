@@ -13300,5 +13300,1381 @@
       "randomState": 2916098932,
       "peakScore": 4
     }
+  },
+  {
+    "name": "v5-moves-two-snapshots",
+    "seed": 1,
+    "version": 5,
+    "actions": [
+      ["move",0],
+      ["move",1],
+      ["move",2]
+    ],
+    "expected": {
+      "peakScore": 4,
+      "bestTileEver": 4,
+      "movesAtPeakScore": 1,
+      "state": {
+        "board": [
+          [0,0,0,2],
+          [0,0,0,0],
+          [0,2,0,0],
+          [0,0,4,2]
+        ],
+        "score": 4,
+        "moves": 3,
+        "won": false,
+        "over": false,
+        "keepPlaying": false,
+        "bonuses": {
+          "undo": 2,
+          "swap": 2,
+          "remove": 2
+        },
+        "reached": {},
+        "canUndo": true,
+        "rng": 2916098932
+      }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            null,
+            null,
+            null,
+            {
+              "position": {
+                "x": 0,
+                "y": 3
+              },
+              "value": 2
+            }
+          ],
+          [null,null,null,null],
+          [
+            null,
+            {
+              "position": {
+                "x": 2,
+                "y": 1
+              },
+              "value": 2
+            },
+            null,
+            null
+          ],
+          [
+            null,
+            null,
+            {
+              "position": {
+                "x": 3,
+                "y": 2
+              },
+              "value": 4
+            },
+            {
+              "position": {
+                "x": 3,
+                "y": 3
+              },
+              "value": 2
+            }
+          ]
+        ]
+      },
+      "score": 4,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 3,
+      "maxTile": 4,
+      "bonuses": {
+        "undo": 2,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {},
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              null,
+              {
+                "position": {
+                  "x": 0,
+                  "y": 1
+                },
+                "value": 2
+              },
+              null,
+              null
+            ],
+            [null,null,null,null],
+            [null,null,null,null],
+            [
+              {
+                "position": {
+                  "x": 3,
+                  "y": 0
+                },
+                "value": 4
+              },
+              null,
+              null,
+              {
+                "position": {
+                  "x": 3,
+                  "y": 3
+                },
+                "value": 2
+              }
+            ]
+          ]
+        },
+        "score": 4,
+        "moves": 2,
+        "won": false,
+        "over": false,
+        "previous": {
+          "grid": {
+            "size": 4,
+            "cells": [
+              [
+                {
+                  "position": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "value": 4
+                },
+                null,
+                null,
+                {
+                  "position": {
+                    "x": 0,
+                    "y": 3
+                  },
+                  "value": 2
+                }
+              ],
+              [null,null,null,null],
+              [null,null,null,null],
+              [null,null,null,null]
+            ]
+          },
+          "score": 4,
+          "moves": 1,
+          "won": false,
+          "over": false
+        }
+      },
+      "randomState": 2916098932,
+      "peakScore": 4
+    }
+  },
+  {
+    "name": "v5-moves-undo-1-after-reload",
+    "seed": 1,
+    "version": 5,
+    "actions": [
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["undo"]
+    ],
+    "expected": {
+      "peakScore": 4,
+      "bestTileEver": 4,
+      "movesAtPeakScore": 1,
+      "state": {
+        "board": [
+          [0,2,0,0],
+          [0,0,0,0],
+          [0,0,0,0],
+          [4,0,0,2]
+        ],
+        "score": 4,
+        "moves": 2,
+        "won": false,
+        "over": false,
+        "keepPlaying": false,
+        "bonuses": {
+          "undo": 1,
+          "swap": 2,
+          "remove": 2
+        },
+        "reached": {},
+        "canUndo": true,
+        "rng": 2916098932
+      }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            null,
+            {
+              "position": {
+                "x": 0,
+                "y": 1
+              },
+              "value": 2
+            },
+            null,
+            null
+          ],
+          [null,null,null,null],
+          [null,null,null,null],
+          [
+            {
+              "position": {
+                "x": 3,
+                "y": 0
+              },
+              "value": 4
+            },
+            null,
+            null,
+            {
+              "position": {
+                "x": 3,
+                "y": 3
+              },
+              "value": 2
+            }
+          ]
+        ]
+      },
+      "score": 4,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 2,
+      "maxTile": 4,
+      "bonuses": {
+        "undo": 1,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {},
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "value": 4
+              },
+              null,
+              null,
+              {
+                "position": {
+                  "x": 0,
+                  "y": 3
+                },
+                "value": 2
+              }
+            ],
+            [null,null,null,null],
+            [null,null,null,null],
+            [null,null,null,null]
+          ]
+        },
+        "score": 4,
+        "moves": 1,
+        "won": false,
+        "over": false
+      },
+      "randomState": 2916098932,
+      "peakScore": 4
+    }
+  },
+  {
+    "name": "v5-moves-undo-2-after-reload",
+    "seed": 1,
+    "version": 5,
+    "actions": [
+      ["move",0],
+      ["move",1],
+      ["move",2],
+      ["undo"],
+      ["undo"]
+    ],
+    "expected": {
+      "peakScore": 4,
+      "bestTileEver": 4,
+      "movesAtPeakScore": 1,
+      "state": {
+        "board": [
+          [4,0,0,2],
+          [0,0,0,0],
+          [0,0,0,0],
+          [0,0,0,0]
+        ],
+        "score": 4,
+        "moves": 1,
+        "won": false,
+        "over": false,
+        "keepPlaying": false,
+        "bonuses": {
+          "undo": 0,
+          "swap": 2,
+          "remove": 2
+        },
+        "reached": {},
+        "canUndo": false,
+        "rng": 2916098932
+      }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            {
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "value": 4
+            },
+            null,
+            null,
+            {
+              "position": {
+                "x": 0,
+                "y": 3
+              },
+              "value": 2
+            }
+          ],
+          [null,null,null,null],
+          [null,null,null,null],
+          [null,null,null,null]
+        ]
+      },
+      "score": 4,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 1,
+      "maxTile": 4,
+      "bonuses": {
+        "undo": 0,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {},
+      "previous": null,
+      "randomState": 2916098932,
+      "peakScore": 4
+    }
+  },
+  {
+    "name": "v5-swaps-two-snapshots",
+    "seed": 1,
+    "version": 5,
+    "actions": [
+      ["move",0],
+      ["swap",0,0,0,3],
+      ["swap",0,0,0,3]
+    ],
+    "expected": {
+      "peakScore": 4,
+      "bestTileEver": 4,
+      "movesAtPeakScore": 1,
+      "state": {
+        "board": [
+          [4,0,0,2],
+          [0,0,0,0],
+          [0,0,0,0],
+          [0,0,0,0]
+        ],
+        "score": 4,
+        "moves": 1,
+        "won": false,
+        "over": false,
+        "keepPlaying": false,
+        "bonuses": {
+          "undo": 2,
+          "swap": 0,
+          "remove": 2
+        },
+        "reached": {},
+        "canUndo": true,
+        "rng": 745495504
+      }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            {
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "value": 4
+            },
+            null,
+            null,
+            {
+              "position": {
+                "x": 0,
+                "y": 3
+              },
+              "value": 2
+            }
+          ],
+          [null,null,null,null],
+          [null,null,null,null],
+          [null,null,null,null]
+        ]
+      },
+      "score": 4,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 1,
+      "maxTile": 4,
+      "bonuses": {
+        "undo": 2,
+        "swap": 0,
+        "remove": 2
+      },
+      "reached": {},
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "value": 2
+              },
+              null,
+              null,
+              {
+                "position": {
+                  "x": 0,
+                  "y": 3
+                },
+                "value": 4
+              }
+            ],
+            [null,null,null,null],
+            [null,null,null,null],
+            [null,null,null,null]
+          ]
+        },
+        "score": 4,
+        "moves": 1,
+        "won": false,
+        "over": false,
+        "bonus": "swap",
+        "previous": {
+          "grid": {
+            "size": 4,
+            "cells": [
+              [
+                {
+                  "position": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "value": 4
+                },
+                null,
+                null,
+                {
+                  "position": {
+                    "x": 0,
+                    "y": 3
+                  },
+                  "value": 2
+                }
+              ],
+              [null,null,null,null],
+              [null,null,null,null],
+              [null,null,null,null]
+            ]
+          },
+          "score": 4,
+          "moves": 1,
+          "won": false,
+          "over": false,
+          "bonus": "swap"
+        }
+      },
+      "randomState": 745495504,
+      "peakScore": 4
+    }
+  },
+  {
+    "name": "v5-swaps-undo-1-after-reload",
+    "seed": 1,
+    "version": 5,
+    "actions": [
+      ["move",0],
+      ["swap",0,0,0,3],
+      ["swap",0,0,0,3],
+      ["undo"]
+    ],
+    "expected": {
+      "peakScore": 4,
+      "bestTileEver": 4,
+      "movesAtPeakScore": 1,
+      "state": {
+        "board": [
+          [2,0,0,4],
+          [0,0,0,0],
+          [0,0,0,0],
+          [0,0,0,0]
+        ],
+        "score": 4,
+        "moves": 1,
+        "won": false,
+        "over": false,
+        "keepPlaying": false,
+        "bonuses": {
+          "undo": 1,
+          "swap": 1,
+          "remove": 2
+        },
+        "reached": {},
+        "canUndo": true,
+        "rng": 745495504
+      }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            {
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "value": 2
+            },
+            null,
+            null,
+            {
+              "position": {
+                "x": 0,
+                "y": 3
+              },
+              "value": 4
+            }
+          ],
+          [null,null,null,null],
+          [null,null,null,null],
+          [null,null,null,null]
+        ]
+      },
+      "score": 4,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 1,
+      "maxTile": 4,
+      "bonuses": {
+        "undo": 1,
+        "swap": 1,
+        "remove": 2
+      },
+      "reached": {},
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "value": 4
+              },
+              null,
+              null,
+              {
+                "position": {
+                  "x": 0,
+                  "y": 3
+                },
+                "value": 2
+              }
+            ],
+            [null,null,null,null],
+            [null,null,null,null],
+            [null,null,null,null]
+          ]
+        },
+        "score": 4,
+        "moves": 1,
+        "won": false,
+        "over": false,
+        "bonus": "swap"
+      },
+      "randomState": 745495504,
+      "peakScore": 4
+    }
+  },
+  {
+    "name": "v5-swaps-undo-2-after-reload",
+    "seed": 1,
+    "version": 5,
+    "actions": [
+      ["move",0],
+      ["swap",0,0,0,3],
+      ["swap",0,0,0,3],
+      ["undo"],
+      ["undo"]
+    ],
+    "expected": {
+      "peakScore": 4,
+      "bestTileEver": 4,
+      "movesAtPeakScore": 1,
+      "state": {
+        "board": [
+          [4,0,0,2],
+          [0,0,0,0],
+          [0,0,0,0],
+          [0,0,0,0]
+        ],
+        "score": 4,
+        "moves": 1,
+        "won": false,
+        "over": false,
+        "keepPlaying": false,
+        "bonuses": {
+          "undo": 0,
+          "swap": 2,
+          "remove": 2
+        },
+        "reached": {},
+        "canUndo": false,
+        "rng": 745495504
+      }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            {
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "value": 4
+            },
+            null,
+            null,
+            {
+              "position": {
+                "x": 0,
+                "y": 3
+              },
+              "value": 2
+            }
+          ],
+          [null,null,null,null],
+          [null,null,null,null],
+          [null,null,null,null]
+        ]
+      },
+      "score": 4,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 1,
+      "maxTile": 4,
+      "bonuses": {
+        "undo": 0,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {},
+      "previous": null,
+      "randomState": 745495504,
+      "peakScore": 4
+    }
+  },
+  {
+    "name": "v5-removes-two-snapshots",
+    "seed": 1,
+    "version": 5,
+    "actions": [
+      ["move",0],
+      ["remove",2],
+      ["remove",4]
+    ],
+    "expected": {
+      "peakScore": 4,
+      "bestTileEver": 4,
+      "movesAtPeakScore": 1,
+      "state": {
+        "board": [
+          [0,2,0,0],
+          [0,0,0,0],
+          [0,0,0,2],
+          [0,0,0,0]
+        ],
+        "score": 4,
+        "moves": 1,
+        "won": false,
+        "over": false,
+        "keepPlaying": false,
+        "bonuses": {
+          "undo": 2,
+          "swap": 2,
+          "remove": 0
+        },
+        "reached": {},
+        "canUndo": true,
+        "rng": 2916098932
+      }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            null,
+            {
+              "position": {
+                "x": 0,
+                "y": 1
+              },
+              "value": 2
+            },
+            null,
+            null
+          ],
+          [null,null,null,null],
+          [
+            null,
+            null,
+            null,
+            {
+              "position": {
+                "x": 2,
+                "y": 3
+              },
+              "value": 2
+            }
+          ],
+          [null,null,null,null]
+        ]
+      },
+      "score": 4,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 1,
+      "maxTile": 4,
+      "bonuses": {
+        "undo": 2,
+        "swap": 2,
+        "remove": 0
+      },
+      "reached": {},
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "value": 4
+              },
+              null,
+              null,
+              null
+            ],
+            [null,null,null,null],
+            [null,null,null,null],
+            [null,null,null,null]
+          ]
+        },
+        "score": 4,
+        "moves": 1,
+        "won": false,
+        "over": false,
+        "bonus": "remove",
+        "previous": {
+          "grid": {
+            "size": 4,
+            "cells": [
+              [
+                {
+                  "position": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "value": 4
+                },
+                null,
+                null,
+                {
+                  "position": {
+                    "x": 0,
+                    "y": 3
+                  },
+                  "value": 2
+                }
+              ],
+              [null,null,null,null],
+              [null,null,null,null],
+              [null,null,null,null]
+            ]
+          },
+          "score": 4,
+          "moves": 1,
+          "won": false,
+          "over": false,
+          "bonus": "remove"
+        }
+      },
+      "randomState": 2916098932,
+      "peakScore": 4
+    }
+  },
+  {
+    "name": "v5-removes-undo-1-after-reload",
+    "seed": 1,
+    "version": 5,
+    "actions": [
+      ["move",0],
+      ["remove",2],
+      ["remove",4],
+      ["undo"]
+    ],
+    "expected": {
+      "peakScore": 4,
+      "bestTileEver": 4,
+      "movesAtPeakScore": 1,
+      "state": {
+        "board": [
+          [4,0,0,0],
+          [0,0,0,0],
+          [0,0,0,0],
+          [0,0,0,0]
+        ],
+        "score": 4,
+        "moves": 1,
+        "won": false,
+        "over": false,
+        "keepPlaying": false,
+        "bonuses": {
+          "undo": 1,
+          "swap": 2,
+          "remove": 1
+        },
+        "reached": {},
+        "canUndo": true,
+        "rng": 2916098932
+      }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            {
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "value": 4
+            },
+            null,
+            null,
+            null
+          ],
+          [null,null,null,null],
+          [null,null,null,null],
+          [null,null,null,null]
+        ]
+      },
+      "score": 4,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 1,
+      "maxTile": 4,
+      "bonuses": {
+        "undo": 1,
+        "swap": 2,
+        "remove": 1
+      },
+      "reached": {},
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "value": 4
+              },
+              null,
+              null,
+              {
+                "position": {
+                  "x": 0,
+                  "y": 3
+                },
+                "value": 2
+              }
+            ],
+            [null,null,null,null],
+            [null,null,null,null],
+            [null,null,null,null]
+          ]
+        },
+        "score": 4,
+        "moves": 1,
+        "won": false,
+        "over": false,
+        "bonus": "remove"
+      },
+      "randomState": 2916098932,
+      "peakScore": 4
+    }
+  },
+  {
+    "name": "v5-removes-undo-2-after-reload",
+    "seed": 1,
+    "version": 5,
+    "actions": [
+      ["move",0],
+      ["remove",2],
+      ["remove",4],
+      ["undo"],
+      ["undo"]
+    ],
+    "expected": {
+      "peakScore": 4,
+      "bestTileEver": 4,
+      "movesAtPeakScore": 1,
+      "state": {
+        "board": [
+          [4,0,0,2],
+          [0,0,0,0],
+          [0,0,0,0],
+          [0,0,0,0]
+        ],
+        "score": 4,
+        "moves": 1,
+        "won": false,
+        "over": false,
+        "keepPlaying": false,
+        "bonuses": {
+          "undo": 0,
+          "swap": 2,
+          "remove": 2
+        },
+        "reached": {},
+        "canUndo": false,
+        "rng": 2916098932
+      }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            {
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "value": 4
+            },
+            null,
+            null,
+            {
+              "position": {
+                "x": 0,
+                "y": 3
+              },
+              "value": 2
+            }
+          ],
+          [null,null,null,null],
+          [null,null,null,null],
+          [null,null,null,null]
+        ]
+      },
+      "score": 4,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 1,
+      "maxTile": 4,
+      "bonuses": {
+        "undo": 0,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {},
+      "previous": null,
+      "randomState": 2916098932,
+      "peakScore": 4
+    }
+  },
+  {
+    "name": "v5-mixed-two-snapshots",
+    "seed": 1,
+    "version": 5,
+    "actions": [
+      ["move",0],
+      ["swap",0,0,0,3],
+      ["remove",2]
+    ],
+    "expected": {
+      "peakScore": 4,
+      "bestTileEver": 4,
+      "movesAtPeakScore": 1,
+      "state": {
+        "board": [
+          [0,0,0,4],
+          [0,0,0,0],
+          [0,0,0,0],
+          [0,0,0,0]
+        ],
+        "score": 4,
+        "moves": 1,
+        "won": false,
+        "over": false,
+        "keepPlaying": false,
+        "bonuses": {
+          "undo": 2,
+          "swap": 1,
+          "remove": 1
+        },
+        "reached": {},
+        "canUndo": true,
+        "rng": 745495504
+      }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            null,
+            null,
+            null,
+            {
+              "position": {
+                "x": 0,
+                "y": 3
+              },
+              "value": 4
+            }
+          ],
+          [null,null,null,null],
+          [null,null,null,null],
+          [null,null,null,null]
+        ]
+      },
+      "score": 4,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 1,
+      "maxTile": 4,
+      "bonuses": {
+        "undo": 2,
+        "swap": 1,
+        "remove": 1
+      },
+      "reached": {},
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "value": 2
+              },
+              null,
+              null,
+              {
+                "position": {
+                  "x": 0,
+                  "y": 3
+                },
+                "value": 4
+              }
+            ],
+            [null,null,null,null],
+            [null,null,null,null],
+            [null,null,null,null]
+          ]
+        },
+        "score": 4,
+        "moves": 1,
+        "won": false,
+        "over": false,
+        "bonus": "remove",
+        "previous": {
+          "grid": {
+            "size": 4,
+            "cells": [
+              [
+                {
+                  "position": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "value": 4
+                },
+                null,
+                null,
+                {
+                  "position": {
+                    "x": 0,
+                    "y": 3
+                  },
+                  "value": 2
+                }
+              ],
+              [null,null,null,null],
+              [null,null,null,null],
+              [null,null,null,null]
+            ]
+          },
+          "score": 4,
+          "moves": 1,
+          "won": false,
+          "over": false,
+          "bonus": "swap"
+        }
+      },
+      "randomState": 745495504,
+      "peakScore": 4
+    }
+  },
+  {
+    "name": "v5-mixed-undo-1-after-reload",
+    "seed": 1,
+    "version": 5,
+    "actions": [
+      ["move",0],
+      ["swap",0,0,0,3],
+      ["remove",2],
+      ["undo"]
+    ],
+    "expected": {
+      "peakScore": 4,
+      "bestTileEver": 4,
+      "movesAtPeakScore": 1,
+      "state": {
+        "board": [
+          [2,0,0,4],
+          [0,0,0,0],
+          [0,0,0,0],
+          [0,0,0,0]
+        ],
+        "score": 4,
+        "moves": 1,
+        "won": false,
+        "over": false,
+        "keepPlaying": false,
+        "bonuses": {
+          "undo": 1,
+          "swap": 1,
+          "remove": 2
+        },
+        "reached": {},
+        "canUndo": true,
+        "rng": 745495504
+      }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            {
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "value": 2
+            },
+            null,
+            null,
+            {
+              "position": {
+                "x": 0,
+                "y": 3
+              },
+              "value": 4
+            }
+          ],
+          [null,null,null,null],
+          [null,null,null,null],
+          [null,null,null,null]
+        ]
+      },
+      "score": 4,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 1,
+      "maxTile": 4,
+      "bonuses": {
+        "undo": 1,
+        "swap": 1,
+        "remove": 2
+      },
+      "reached": {},
+      "previous": {
+        "grid": {
+          "size": 4,
+          "cells": [
+            [
+              {
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "value": 4
+              },
+              null,
+              null,
+              {
+                "position": {
+                  "x": 0,
+                  "y": 3
+                },
+                "value": 2
+              }
+            ],
+            [null,null,null,null],
+            [null,null,null,null],
+            [null,null,null,null]
+          ]
+        },
+        "score": 4,
+        "moves": 1,
+        "won": false,
+        "over": false,
+        "bonus": "swap"
+      },
+      "randomState": 745495504,
+      "peakScore": 4
+    }
+  },
+  {
+    "name": "v5-mixed-undo-2-after-reload",
+    "seed": 1,
+    "version": 5,
+    "actions": [
+      ["move",0],
+      ["swap",0,0,0,3],
+      ["remove",2],
+      ["undo"],
+      ["undo"]
+    ],
+    "expected": {
+      "peakScore": 4,
+      "bestTileEver": 4,
+      "movesAtPeakScore": 1,
+      "state": {
+        "board": [
+          [4,0,0,2],
+          [0,0,0,0],
+          [0,0,0,0],
+          [0,0,0,0]
+        ],
+        "score": 4,
+        "moves": 1,
+        "won": false,
+        "over": false,
+        "keepPlaying": false,
+        "bonuses": {
+          "undo": 0,
+          "swap": 2,
+          "remove": 2
+        },
+        "reached": {},
+        "canUndo": false,
+        "rng": 745495504
+      }
+    },
+    "savedState": {
+      "grid": {
+        "size": 4,
+        "cells": [
+          [
+            {
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "value": 4
+            },
+            null,
+            null,
+            {
+              "position": {
+                "x": 0,
+                "y": 3
+              },
+              "value": 2
+            }
+          ],
+          [null,null,null,null],
+          [null,null,null,null],
+          [null,null,null,null]
+        ]
+      },
+      "score": 4,
+      "over": false,
+      "won": false,
+      "keepPlaying": false,
+      "moves": 1,
+      "maxTile": 4,
+      "bonuses": {
+        "undo": 0,
+        "swap": 2,
+        "remove": 2
+      },
+      "reached": {},
+      "previous": null,
+      "randomState": 745495504,
+      "peakScore": 4
+    }
   }
 ]

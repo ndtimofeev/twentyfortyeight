@@ -8,7 +8,7 @@ use InvalidArgumentException;
 
 /** Deterministic, versioned rules shared with the browser's recorded games. */
 final class GameEngine {
-	public const VERSION = 4;
+	public const VERSION = 5;
 	public const MAX_ACTIONS = 50_000;
 	private const SIZE = 4;
 	private const BONUS_MILESTONES = [128 => 'undo', 256 => 'swap', 512 => 'remove'];
@@ -35,7 +35,7 @@ final class GameEngine {
 		if (PHP_INT_SIZE < 8 || $seed < 1 || $seed > 0xffffffff) {
 			throw new InvalidArgumentException('Invalid game seed');
 		}
-		if (!in_array($version, [1, 2, 3, 4], true)) {
+		if (!in_array($version, [1, 2, 3, 4, 5], true)) {
 			throw new InvalidArgumentException('Unsupported game rules version');
 		}
 		$this->rulesVersion = $version;
@@ -52,7 +52,7 @@ final class GameEngine {
 
 	/** Preserve the verified position at the signed cutover to current rules. */
 	public function upgradeRules(int $version = self::VERSION): void {
-		if (!in_array($version, [3, 4], true) || $version < $this->rulesVersion) {
+		if (!in_array($version, [3, 4, 5], true) || $version < $this->rulesVersion) {
 			throw new InvalidArgumentException('Invalid rules upgrade');
 		}
 		$this->rulesVersion = $version;
@@ -105,16 +105,7 @@ final class GameEngine {
 
 	/** Browser restoration state derived exclusively from verified actions. */
 	public function savedState(): array {
-		$previous = $this->previous === null ? null : [
-			'grid' => $this->serializeGrid($this->previous['board']),
-			'score' => $this->previous['score'],
-			'moves' => $this->previous['moves'],
-			'won' => $this->previous['won'],
-			'over' => $this->previous['over'],
-		];
-		if ($previous !== null && isset($this->previous['bonus'])) {
-			$previous['bonus'] = $this->previous['bonus'];
-		}
+		$previous = $this->previous === null ? null : $this->serializeSnapshot($this->previous);
 		$state = [
 			'grid' => $this->serializeGrid($this->board),
 			'score' => $this->score,
@@ -132,6 +123,14 @@ final class GameEngine {
 			$state['pendingBonuses'] = $this->pendingBonuses;
 		}
 		$state['peakScore'] = $this->peakScore;
+		return $state;
+	}
+
+	private function serializeSnapshot(array $snapshot): array {
+		$state = ['grid' => $this->serializeGrid($snapshot['board']), 'score' => $snapshot['score'],
+			'moves' => $snapshot['moves'], 'won' => $snapshot['won'], 'over' => $snapshot['over']];
+		if (isset($snapshot['bonus'])) $state['bonus'] = $snapshot['bonus'];
+		if (isset($snapshot['previous'])) $state['previous'] = $this->serializeSnapshot($snapshot['previous']);
 		return $state;
 	}
 
@@ -166,13 +165,14 @@ final class GameEngine {
 					throw new InvalidArgumentException('Undo is unavailable');
 				}
 				foreach ($this->previous as $key => $value) {
+					if ($key === 'previous') continue;
 					if ($key === 'bonus') {
 						if ($this->rulesVersion >= 4) $this->bonuses[$value] = min(2, $this->bonuses[$value] + 1);
 						continue;
 					}
 					$this->{$key} = $value;
 				}
-				$this->previous = null;
+				$this->previous = $this->rulesVersion >= 5 ? ($this->previous['previous'] ?? null) : null;
 				$this->useBonusCharge('undo');
 				return;
 			case 'swap':
@@ -207,10 +207,7 @@ final class GameEngine {
 		if ($this->terminated()) {
 			throw new InvalidArgumentException('Game is terminated');
 		}
-		$snapshot = [
-			'board' => $this->board, 'score' => $this->score, 'moves' => $this->moves,
-			'won' => $this->won, 'over' => $this->over,
-		];
+		$snapshot = $this->snapshot();
 		[$dx, $dy] = self::VECTORS[$direction];
 		$xs = $dx === 1 ? [3, 2, 1, 0] : [0, 1, 2, 3];
 		$ys = $dy === 1 ? [3, 2, 1, 0] : [0, 1, 2, 3];
@@ -263,7 +260,7 @@ final class GameEngine {
 		if ($this->terminated() || $this->bonuses['swap'] < 1 || $a === 0 || $b === 0 || $a === $b) {
 			throw new InvalidArgumentException('Swap is unavailable for these tiles');
 		}
-		$snapshot = $this->rulesVersion >= 4 ? $this->bonusSnapshot('swap') : null;
+		$snapshot = $this->rulesVersion >= 4 ? $this->snapshot('swap') : null;
 		$this->board[$x1][$y1] = $b;
 		$this->board[$x2][$y2] = $a;
 		if (!$this->movesAvailable()) {
@@ -279,7 +276,7 @@ final class GameEngine {
 		if ($this->terminated() || $this->bonuses['remove'] < 1) {
 			throw new InvalidArgumentException('Remove is unavailable');
 		}
-		$snapshot = $this->rulesVersion >= 4 ? $this->bonusSnapshot('remove') : null;
+		$snapshot = $this->rulesVersion >= 4 ? $this->snapshot('remove') : null;
 		$found = false;
 		foreach ($this->board as $x => $column) {
 			foreach ($column as $y => $tile) {
@@ -300,9 +297,15 @@ final class GameEngine {
 		$this->previous = $snapshot;
 	}
 
-	private function bonusSnapshot(string $bonus): array {
-		return ['board' => $this->board, 'score' => $this->score, 'moves' => $this->moves,
-			'won' => $this->won, 'over' => $this->over, 'bonus' => $bonus];
+	private function snapshot(?string $bonus = null): array {
+		$state = ['board' => $this->board, 'score' => $this->score, 'moves' => $this->moves,
+			'won' => $this->won, 'over' => $this->over];
+		if ($bonus !== null) $state['bonus'] = $bonus;
+		if ($this->rulesVersion >= 5 && $this->previous !== null) {
+			$state['previous'] = $this->previous;
+			unset($state['previous']['previous']);
+		}
+		return $state;
 	}
 
 	private function awardBonus(int $value): void {

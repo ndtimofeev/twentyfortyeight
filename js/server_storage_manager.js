@@ -318,20 +318,22 @@ ServerStorageManager.prototype.validLocalGame = function (state) {
   var session = state && state.session;
   return this.validSavedState(state) && session && typeof session.token === "string" && session.token &&
     Number.isInteger(session.seed) && session.seed > 0 && session.seed <= 0xffffffff &&
-    (session.version === undefined || [1, 2, 3, 4].indexOf(session.version) !== -1) && Array.isArray(state.actions) &&
+    (session.version === undefined || [1, 2, 3, 4, 5].indexOf(session.version) !== -1) && Array.isArray(state.actions) &&
     state.actions.length <= 50000 && state.actions.every(this.validAction) &&
     (session.version < 3 || session.version === undefined || (state.pendingBonuses === undefined &&
-      (session.previousCutover === undefined || (session.version === 4 && Number.isInteger(session.previousCutover) &&
+      (session.previousCutover === undefined || (session.version >= 4 && Number.isInteger(session.previousCutover) &&
         session.previousCutover >= 0 && session.previousCutover <= session.cutover)) &&
-      (session.ancestorTokens === undefined || (session.version === 4 && Array.isArray(session.ancestorTokens) &&
-        session.ancestorTokens.length <= 2 && session.ancestorTokens.every(function (token) { return typeof token === "string" && token; }))) &&
+      (session.ancestorTokens === undefined || (session.version >= 4 && Array.isArray(session.ancestorTokens) &&
+        session.ancestorTokens.length <= session.version - 2 && session.ancestorTokens.every(function (token) { return typeof token === "string" && token; }) &&
+        (session.version < 5 || (Array.isArray(session.ancestorCutovers) && session.ancestorCutovers.length === session.ancestorTokens.length &&
+          session.ancestorCutovers.every(function (cutover) { return Number.isInteger(cutover) && cutover >= 0 && cutover <= session.cutover; }))))) &&
       (session.ancestorToken === undefined || (typeof session.ancestorToken === "string" && session.ancestorToken)) &&
       (session.previousToken === undefined || (typeof session.previousToken === "string" && session.previousToken &&
         Number.isInteger(session.cutover) && session.cutover >= 0 && session.cutover <= state.actions.length))));
 };
 
 ServerStorageManager.prototype.serverState = function (game) {
-  if (!game || !game.session || [1, 2, 3, 4].indexOf(game.session.version) === -1 ||
+  if (!game || !game.session || [1, 2, 3, 4, 5].indexOf(game.session.version) === -1 ||
       !Number.isInteger(game.revision) || game.revision < 0) throw new Error("Invalid active game response");
   var state = Object.assign({}, game.state, {
     session: game.session, actions: this.copyActions(game.actions || []), revision: game.revision
@@ -351,13 +353,17 @@ ServerStorageManager.prototype.isUpgrade = function (oldSession, newSession) {
   return (newSession.version === 2 && version === 1 && directParent) ||
     (newSession.version === 3 && ((directParent && (version === 1 || version === 2)) ||
       (version === 1 && newSession.ancestorToken === oldSession.token))) ||
-    (newSession.version === 4 && version < 4 && (directParent ||
+    (newSession.version >= 4 && version < newSession.version && (directParent ||
       (Array.isArray(newSession.ancestorTokens) && newSession.ancestorTokens.indexOf(oldSession.token) !== -1)));
 };
 
 ServerStorageManager.prototype.canExtendUpgrade = function (game, source) {
   if (game.session.version < 3) return true;
   if (game.actions.length !== game.session.cutover) return false;
+  if (game.session.version >= 5 && source && source.token !== game.session.previousToken) {
+    var index = (game.session.ancestorTokens || []).indexOf(source.token);
+    return index !== -1 && game.session.ancestorCutovers[index] === game.session.cutover;
+  }
   return !source || source.token === game.session.previousToken || game.session.previousCutover === undefined ||
     game.session.previousCutover === game.session.cutover;
 };
@@ -391,7 +397,7 @@ ServerStorageManager.prototype.replayUpgrade = async function (initial, local, g
       try {
         var body = { session: target.session.token, actions: actions, revision: target.revision };
         if (target.session.version >= 3) body.upgradeFrom = target.session.previousToken;
-        if (target.session.version === 4) body.sourceSession = oldSession.token;
+        if (target.session.version >= 4) body.sourceSession = oldSession.token;
         var saved = await this.request("PUT", body, this.gamesUrl);
         this.serverState(saved.data.game);
         return saved;
@@ -719,8 +725,13 @@ ServerStorageManager.prototype.validSavedState = function (state) {
   if (state.pendingBonuses !== undefined && (!state.pendingBonuses || !["undo", "swap", "remove"].every(function (type) {
     return Number.isInteger(state.pendingBonuses[type]) && state.pendingBonuses[type] >= 0 && state.pendingBonuses[type] <= 1;
   }))) return false;
-  return !state.previous || (this.validBoard(state.previous) &&
-    (state.previous.bonus === undefined || state.previous.bonus === "swap" || state.previous.bonus === "remove"));
+  return !state.previous || this.validUndoState(state.previous, 0);
+};
+
+ServerStorageManager.prototype.validUndoState = function (state, depth) {
+  return this.validBoard(state) &&
+    (state.bonus === undefined || state.bonus === "swap" || state.bonus === "remove") &&
+    (!state.previous || (depth === 0 && this.validUndoState(state.previous, 1)));
 };
 
 ServerStorageManager.prototype.validBoard = function (state) {

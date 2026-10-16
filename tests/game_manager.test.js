@@ -202,9 +202,9 @@ test('v1 undo and redo of a merge does not farm charges', () => {
 	assert.strictEqual(game.undo(), false)
 })
 
-test('new local games use v4 while versioned sessions retain their original rules', () => {
+test('new local games use v5 while versioned sessions retain their original rules', () => {
 	const local = load().game
-	assert.strictEqual(local.rulesVersion, 4)
+	assert.strictEqual(local.rulesVersion, 5)
 	assert.strictEqual(Object.hasOwn(local.serialize(), 'pendingBonuses'), false)
 	const legacy = load(null, { seed: 42 }).game
 	assert.strictEqual(legacy.rulesVersion, 1)
