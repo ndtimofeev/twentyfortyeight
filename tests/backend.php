@@ -12,7 +12,7 @@ foreach ([
 	'Controller/ScoreController', 'Controller/GameController', 'Listener/UserDeletedListener',
 	'Migration/Version000100Date20261010000000', 'Migration/Version000200Date20261012000000',
 	'Migration/Version000300Date20261012000000',
-	'Migration/Version000600Date20261012000000', 'Migration/Version000700Date20261016000000',
+	'Migration/Version000600Date20261012000000', 'Migration/Version000700Date20261016000000', 'Migration/Version000701Date20261016000000',
 ] as $class) {
 	require __DIR__ . '/../lib/' . $class . '.php';
 }
@@ -62,6 +62,9 @@ function fixture(): array {
 	$migration->changeSchema($output, fn () => $schema, []);
 	$schema->apply($db);
 	$migration->postSchemaChange($output, fn () => $schema, []);
+	$fix = new \OCA\TwentyFortyEight\Migration\Version000701Date20261016000000($db);
+	$fix->changeSchema($output, fn () => $schema, []);
+	$fix->postSchemaChange($output, fn () => $schema, []);
 	return [$db, new ScoreMapper($db), $schema];
 }
 

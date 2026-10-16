@@ -154,6 +154,9 @@ session tokens to 2048 characters and adds a singleton row for serializing
 leaderboard transitions. First-place displacement uses native Nextcloud
 notifications, with an English fallback and Russian translation.
 
+Version 0.7.1 shortens the mutex table name for Nextcloud 31–32 and migrates
+0.7.0 installations without changing game histories or records.
+
 ## Layout
 
 ```

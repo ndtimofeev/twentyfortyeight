@@ -36,7 +36,7 @@ class ScoreMapper extends QBMapper {
 		$this->db->beginTransaction();
 		try {
 			$qb = $this->db->getQueryBuilder();
-			$qb->update('twentyfortyeight_leader_lock')
+			$qb->update('twentyfortyeight_lock')
 				->set('id', $qb->createNamedParameter(1, IQueryBuilder::PARAM_INT))
 				->where($qb->expr()->eq('id', $qb->createNamedParameter(1, IQueryBuilder::PARAM_INT)))
 				->executeStatement();

@@ -141,5 +141,28 @@ $tests['v5 longest signed ancestry fits the widened token column'] = function ()
 	$output=new class implements OCP\Migration\IOutput {};
 	same(null,$migration->changeSchema($output,fn()=>$schema,[]));
 	$migration->postSchemaChange($output,fn()=>$schema,[]);
-	same(1,(int)$db->pdo->query('SELECT COUNT(*) FROM twentyfortyeight_leader_lock')->fetchColumn());
+	same(1,(int)$db->pdo->query('SELECT COUNT(*) FROM twentyfortyeight_lock')->fetchColumn());
+};
+
+$tests['0.7.1 migration replaces only the old mutex and fits NC31 table limits'] = function (): void {
+	$db=new TwentyFortyEightTests\Database();
+	$schema=new TwentyFortyEightTests\Schema();
+	$old=$schema->createTable('twentyfortyeight_leader_lock');
+	$old->addColumn('id',OCP\DB\Types::INTEGER,['autoincrement'=>true,'notnull'=>true]);
+	$old->setPrimaryKey(['id']);
+	$records=$schema->createTable('twentyfortyeight_records');
+	$records->addColumn('id',OCP\DB\Types::INTEGER,['autoincrement'=>true,'notnull'=>true]);
+	$before=$records->columns;
+	$migration=new OCA\TwentyFortyEight\Migration\Version000701Date20261016000000($db);
+	$output=new class implements OCP\Migration\IOutput {};
+	same($schema,$migration->changeSchema($output,fn()=>$schema,[]));
+	same(false,$schema->hasTable('twentyfortyeight_leader_lock'));
+	same(true,$schema->hasTable('twentyfortyeight_lock'));
+	same($before,$schema->getTable('twentyfortyeight_records')->columns);
+	foreach (array_keys($schema->tables) as $name) same(true,strlen('oc_'.$name)<=27);
+	$schema->apply($db);
+	$migration->postSchemaChange($output,fn()=>$schema,[]);
+	$migration->postSchemaChange($output,fn()=>$schema,[]);
+	same(null,$migration->changeSchema($output,fn()=>$schema,[]));
+	same(1,(int)$db->pdo->query('SELECT id FROM twentyfortyeight_lock')->fetchColumn());
 };

@@ -257,6 +257,7 @@ namespace TwentyFortyEightTests {
 	class Schema implements \OCP\DB\ISchemaWrapper {
 		public array $tables = [];
 		public function hasTable(string $name): bool { return isset($this->tables[$name]); }
+		public function dropTable(string $name): void { unset($this->tables[$name]); }
 		public function getTable(string $name): Table { return $this->tables[$name]; }
 		public function createTable(string $name): Table { return $this->tables[$name] = new Table(); }
 		public function apply(Database $db): void {

@@ -23,8 +23,8 @@ class Version000700Date20261016000000 extends SimpleMigrationStep {
 			$column = $schema->getTable('twentyfortyeight_games')->getColumn('session_token');
 			if ($column->getLength() < 2048) { $column->setLength(2048); $changed = true; }
 		}
-		if (!$schema->hasTable('twentyfortyeight_leader_lock')) {
-			$table = $schema->createTable('twentyfortyeight_leader_lock');
+		if (!$schema->hasTable('twentyfortyeight_lock')) {
+			$table = $schema->createTable('twentyfortyeight_lock');
 			$table->addColumn('id', Types::INTEGER, ['autoincrement' => true, 'notnull' => true]);
 			$table->setPrimaryKey(['id']);
 			$changed = true;
@@ -34,13 +34,13 @@ class Version000700Date20261016000000 extends SimpleMigrationStep {
 
 	public function postSchemaChange(IOutput $output, Closure $schemaClosure, array $options): void {
 		$qb = $this->db->getQueryBuilder();
-		$result = $qb->select('id')->from('twentyfortyeight_leader_lock')->executeQuery();
+		$result = $qb->select('id')->from('twentyfortyeight_lock')->executeQuery();
 		$exists = $result->fetchOne() !== false;
 		$result->closeCursor();
 		if ($exists) return;
 		$qb = $this->db->getQueryBuilder();
 		try {
-			$qb->insert('twentyfortyeight_leader_lock')->setValue('id', $qb->createNamedParameter(1))->executeStatement();
+			$qb->insert('twentyfortyeight_lock')->setValue('id', $qb->createNamedParameter(1))->executeStatement();
 		} catch (DbException $e) {
 			if ($e->getReason() !== DbException::REASON_UNIQUE_CONSTRAINT_VIOLATION) throw $e;
 		}
